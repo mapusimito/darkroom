@@ -81,6 +81,9 @@
     filter:      'all',
     sort:        'name-asc',
     lbIdx:       -1,
+    // Select mode state (M4)
+    selectMode:  false,
+    selected:    new Set(), // file IDs
     // Slideshow state
     slideshowActive: false,
     slideshowIdx:    0,
@@ -113,6 +116,18 @@
     lbName:      el('lb-name'),
     lbCtr:       el('lb-ctr'),
     lbOpen:      el('lb-open'),
+    // selection bar (M4)
+    selModeBtn:    el('select-mode-btn'),
+    selBar:        el('sel-bar'),
+    selCount:      el('sel-count'),
+    selAll:        el('sel-all'),
+    selNone:       el('sel-none'),
+    selProgressWrap: el('sel-progress-wrap'),
+    selProgressBar:  el('sel-progress-bar'),
+    selProgressLbl:  el('sel-progress-label'),
+    selDownload:   el('sel-download'),
+    selDownloadLbl:el('sel-download-label'),
+    selExit:       el('sel-exit'),
     // favorites
     favHdrBtn:   el('fav-hdr-btn'),
     favCount:    el('fav-count'),
@@ -433,9 +448,10 @@
         thumbHtml = `<div class="thumb-icon">${typeIcon(t)}</div>`;
       }
 
-      const faved = isFav(file.id);
+      const faved    = isFav(file.id);
+      const selected = S.selectMode && S.selected.has(file.id);
       return `
-        <div class="card ${t==='folder'?'card-folder':''}"
+        <div class="card ${t==='folder'?'card-folder':''} ${selected?'selected':''}"
              role="listitem" tabindex="0"
              data-id="${esc(file.id)}" data-type="${t}"
              data-midx="${midx}" data-fname="${t==='folder'?esc(file.name):''}"
@@ -443,6 +459,13 @@
           <div class="card-thumb">
             ${thumbHtml}
             <span class="badge ${bc}">${bl}</span>
+            ${t !== 'folder' ? `
+            <button class="card-check" data-cid="${esc(file.id)}" aria-label="Select ${esc(file.name)}">
+              <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24"
+                   fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </button>` : ''}
             <button class="fav-btn ${faved ? 'faved' : ''}"
                     data-fid="${esc(file.id)}"
                     aria-label="${faved ? 'Remove from favorites' : 'Add to favorites'}"
@@ -488,6 +511,10 @@
     D.grid.querySelectorAll('.card').forEach(card => {
       const { id, type, midx, fname } = card.dataset;
       const activate = () => {
+        if (S.selectMode) {
+          if (type !== 'folder') toggleSelect(id);
+          return;
+        }
         if (type === 'folder')              browse(id, fname);
         else if (type === 'image' || type === 'video') openLb(+midx);
         else {
@@ -497,6 +524,15 @@
       };
       card.addEventListener('click', activate);
       card.addEventListener('keydown', e => (e.key==='Enter'||e.key===' ') && (e.preventDefault(), activate()));
+
+      // Card checkbox — stop propagation so card click doesn't also fire
+      const checkBtn = card.querySelector('.card-check');
+      if (checkBtn) {
+        checkBtn.addEventListener('click', e => {
+          e.stopPropagation();
+          toggleSelect(checkBtn.dataset.cid);
+        });
+      }
 
       // Fav button — stop propagation so it doesn't open the card
       const favBtn = card.querySelector('.fav-btn');
@@ -553,6 +589,125 @@
   function lbNav(d) {
     const n = S.lbIdx + d;
     if (n >= 0 && n < S.media.length) { S.lbIdx = n; paintLb(); }
+  }
+
+  /* ─────────────────────────────────────────
+     SELECTION & ZIP DOWNLOAD (M4)
+  ───────────────────────────────────────── */
+  function isDownloadable(file) {
+    // Skip Google Workspace formats — no binary content to download
+    return !((file.mimeType || '').startsWith('application/vnd.google-apps.'));
+  }
+
+  function enterSelectMode() {
+    S.selectMode = true;
+    S.selected.clear();
+    document.body.classList.add('select-mode');
+    D.selModeBtn.classList.add('active');
+    D.selBar.classList.remove('hidden');
+    updateSelBar();
+    renderGrid(); // redraw to show checkboxes
+  }
+
+  function exitSelectMode() {
+    S.selectMode = false;
+    S.selected.clear();
+    document.body.classList.remove('select-mode');
+    D.selModeBtn.classList.remove('active');
+    D.selBar.classList.add('hidden');
+    renderGrid(); // redraw to hide checkboxes
+  }
+
+  function toggleSelect(id) {
+    if (S.selected.has(id)) S.selected.delete(id);
+    else                     S.selected.add(id);
+    // Update card DOM directly — no full re-render needed
+    const card = D.grid.querySelector(`.card[data-id="${id}"]`);
+    if (card) card.classList.toggle('selected', S.selected.has(id));
+    updateSelBar();
+  }
+
+  function updateSelBar() {
+    const n = S.selected.size;
+    D.selCount.textContent = n === 0 ? '0 selected' : `${n} file${n !== 1 ? 's' : ''} selected`;
+    const downloadable = [...S.selected].filter(id => {
+      const f = S.files.find(x => x.id === id);
+      return f && isDownloadable(f);
+    }).length;
+    D.selDownload.disabled = downloadable === 0;
+    D.selDownloadLbl.textContent = downloadable > 0 ? `Download ZIP (${downloadable})` : 'Download ZIP';
+  }
+
+  async function downloadZip() {
+    const toDownload = S.files.filter(f =>
+      S.selected.has(f.id) && isDownloadable(f) && fileType(f.mimeType) !== 'folder'
+    );
+    if (!toDownload.length) return;
+
+    if (toDownload.length > 50) {
+      const ok = confirm(`You selected ${toDownload.length} files. This may use significant memory. Continue?`);
+      if (!ok) return;
+    }
+
+    // Lock UI during download
+    D.selDownload.disabled = true;
+    D.selAll.disabled = true;
+    D.selNone.disabled = true;
+    D.selProgressWrap.classList.remove('hidden');
+    D.selProgressBar.style.width = '0%';
+
+    const zip   = new JSZip();  // eslint-disable-line no-undef
+    const total = toDownload.length;
+    let   done  = 0;
+    const failed = [];
+
+    for (const file of toDownload) {
+      try {
+        const url = `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media&key=${getApiKey()}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const blob = await res.blob();
+        zip.file(file.name, blob);
+      } catch {
+        failed.push(file.name);
+      }
+      done++;
+      const pct = Math.round((done / total) * 80); // fetch phase: 0→80%
+      D.selProgressBar.style.width = pct + '%';
+      D.selProgressLbl.textContent = `Fetching ${done}/${total}…`;
+    }
+
+    // Compress phase: 80→100%
+    D.selProgressLbl.textContent = 'Compressing…';
+    const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' }, meta => {
+      D.selProgressBar.style.width = (80 + meta.percent * 0.2).toFixed(0) + '%';
+    });
+
+    // Trigger download
+    const folderName = S.stack.at(-1)?.name?.replace(/[^a-z0-9]/gi, '-') || 'darkroom';
+    const anchor = document.createElement('a');
+    anchor.href = URL.createObjectURL(zipBlob);
+    anchor.download = `${folderName}-selection.zip`;
+    anchor.click();
+    URL.revokeObjectURL(anchor.href);
+
+    // Reset UI
+    D.selProgressWrap.classList.add('hidden');
+    D.selProgressBar.style.width = '0%';
+    D.selProgressLbl.textContent = '';
+    D.selDownload.disabled = false;
+    D.selAll.disabled = false;
+    D.selNone.disabled = false;
+    updateSelBar();
+
+    if (failed.length) {
+      D.selProgressWrap.classList.remove('hidden');
+      D.selProgressLbl.textContent = `⚠ ${failed.length} file${failed.length > 1 ? 's' : ''} skipped (not downloadable)`;
+      setTimeout(() => {
+        D.selProgressWrap.classList.add('hidden');
+        D.selProgressLbl.textContent = '';
+      }, 4000);
+    }
   }
 
   /* ─────────────────────────────────────────
@@ -805,6 +960,31 @@
 
   // Initialize dot on load
   updateKeyDot();
+
+  /* ─── Selection bar (M4) ───────────────── */
+  D.selModeBtn.addEventListener('click', () => {
+    if (S.selectMode) exitSelectMode();
+    else              enterSelectMode();
+  });
+
+  D.selAll.addEventListener('click', () => {
+    // Select all non-folder downloadable files in the current filtered view
+    S.filtered.forEach(f => {
+      if (fileType(f.mimeType) !== 'folder') S.selected.add(f.id);
+    });
+    // Reflect selection state on all cards in DOM
+    D.grid.querySelectorAll('.card:not(.card-folder)').forEach(c => c.classList.add('selected'));
+    updateSelBar();
+  });
+
+  D.selNone.addEventListener('click', () => {
+    S.selected.clear();
+    D.grid.querySelectorAll('.card.selected').forEach(c => c.classList.remove('selected'));
+    updateSelBar();
+  });
+
+  D.selDownload.addEventListener('click', downloadZip);
+  D.selExit.addEventListener('click', exitSelectMode);
 
   // Favorites header button — jump to favorites view if gallery is open
   D.favHdrBtn.addEventListener('click', () => {

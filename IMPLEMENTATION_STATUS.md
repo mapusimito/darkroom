@@ -1,7 +1,7 @@
 # Darkroom — Implementation Status
 
 > **Last Updated**: 2026-02-26
-> **Current Milestone**: 3 ✅ Complete — Next planned: 4, 5, 6
+> **Current Milestone**: 4 ✅ Complete — Next planned: 5, 6, 7
 > **Project**: Darkroom — Drive Media Manager
 > **Vision**: Browse Your Media, Developed. Paste a Google Drive folder link → instant cinematic gallery.
 
@@ -25,7 +25,7 @@
 | 1 | MVP Core Gallery | 6 | ✅ 100% | 2026-02-26 |
 | 2 | Slideshow Mode | 5 | ✅ 100% | 2026-02-26 |
 | 3 | Favorites & Shortlist | 4 | ✅ 100% | 2026-02-26 |
-| 4 | Multi-file ZIP Download | 4 | ⬜ 0% | — |
+| 4 | Multi-file ZIP Download | 4 | ✅ 100% | 2026-02-26 |
 | 5 | Date Auto-Grouping | 5 | ⬜ 0% | — |
 | 6 | URL Sharing & Deep Links | 4 | ⬜ 0% | — |
 | 7 | Private Folder OAuth | 6 | ⬜ 0% | — |
@@ -132,25 +132,30 @@ All DOM ID references between `index.html` and `script.js` verified — no misma
 
 ---
 
-## Milestone 4 — Multi-file ZIP Download ⬜
+## Milestone 4 — Multi-file ZIP Download ✅
 
 > **Goal**: Let users select multiple files and download them as a ZIP — without leaving the app.
-> **Status**: Not Started
+> **Status**: Complete
+> **Completed**: 2026-02-26
 
 ### Tasks
 
 | # | Task | Status |
 |---|------|--------|
-| 4.1 | Multi-select mode toggle (checkbox overlay on cards) | ⬜ |
-| 4.2 | Selection state management and count badge | ⬜ |
-| 4.3 | Client-side ZIP packaging with JSZip | ⬜ |
-| 4.4 | Progress indicator during ZIP generation | ⬜ |
+| 4.1 | Multi-select mode toggle (checkbox overlay on cards) | ✅ |
+| 4.2 | Selection state management and count badge | ✅ |
+| 4.3 | Client-side ZIP packaging with JSZip | ✅ |
+| 4.4 | Progress indicator during ZIP generation | ✅ |
 
 ### Notes
-- Use JSZip (browser library, no server needed) for ZIP generation
-- Drive webContentLink used for direct file download
-- Warn user if >50 files selected (memory/performance limits)
-- "Select all filtered" shortcut needed
+- JSZip v3.10.1 via CDN — runs entirely in browser, no server needed
+- `googleapis.com/drive/v3/files/{id}?alt=media&key=…` for CORS-safe binary fetch
+- Google Workspace files (Docs, Sheets, Slides) skipped — no binary content; detected via `application/vnd.google-apps.` mime prefix
+- 2-phase progress: fetch phase (0→80%) + DEFLATE compress phase (80→100%)
+- Warns before downloading >50 files (memory safety)
+- "Select all" selects all non-folder items in the current filtered view
+- `body.select-mode` CSS class drives checkbox visibility without JS per-card style changes
+- `S.selected` Set persists across filter changes while in select mode
 
 ---
 
