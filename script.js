@@ -7,6 +7,7 @@
   const API_BASE   = 'https://www.googleapis.com/drive/v3/files';
   const PG_SIZE    = 100;
   const LS_KEY     = 'darkroom_api_key';
+  const LS_FAVS    = 'darkroom_favs';
 
   function getApiKey() {
     // Priority: config.js (gitignored) → localStorage (user-entered via settings)
@@ -23,6 +24,47 @@
 
   function hasApiKey() {
     return getApiKey().length > 10;
+  }
+
+  /* ─────────────────────────────────────────
+     FAVORITES (M3)
+  ───────────────────────────────────────── */
+  let _favs = null; // in-memory cache
+
+  function loadFavs() {
+    if (_favs) return _favs;
+    try {
+      const raw = localStorage.getItem(LS_FAVS);
+      _favs = new Set(raw ? JSON.parse(raw) : []);
+    } catch { _favs = new Set(); }
+    return _favs;
+  }
+
+  function saveFavs() {
+    localStorage.setItem(LS_FAVS, JSON.stringify([...loadFavs()]));
+  }
+
+  function isFav(id) { return loadFavs().has(id); }
+
+  function toggleFav(id, btn) {
+    const favs = loadFavs();
+    if (favs.has(id)) favs.delete(id);
+    else              favs.add(id);
+    saveFavs();
+    const active = favs.has(id);
+    if (btn) {
+      btn.classList.toggle('faved', active);
+      btn.setAttribute('aria-label', active ? 'Remove from favorites' : 'Add to favorites');
+    }
+    updateFavBadge();
+    if (S.filter === 'favorites') applyFilter(); // refresh grid if in favs view
+  }
+
+  function updateFavBadge() {
+    const n = loadFavs().size;
+    if (!D.favHdrBtn) return;
+    D.favHdrBtn.classList.toggle('hidden', n === 0);
+    D.favCount.textContent = n;
   }
 
   /* ─────────────────────────────────────────
@@ -71,6 +113,9 @@
     lbName:      el('lb-name'),
     lbCtr:       el('lb-ctr'),
     lbOpen:      el('lb-open'),
+    // favorites
+    favHdrBtn:   el('fav-hdr-btn'),
+    favCount:    el('fav-count'),
     // settings
     settingsBtn: el('settings-btn'),
     settingsMod: el('settings-modal'),
@@ -307,7 +352,8 @@
   ───────────────────────────────────────── */
   function applyFilter() {
     let list = [...S.files];
-    if (S.filter !== 'all') list = list.filter(f => fileType(f.mimeType) === S.filter);
+    if (S.filter === 'favorites')   list = list.filter(f => isFav(f.id));
+    else if (S.filter !== 'all')    list = list.filter(f => fileType(f.mimeType) === S.filter);
     if (S.search) {
       const q = S.search.toLowerCase();
       list = list.filter(f => f.name.toLowerCase().includes(q));
@@ -354,10 +400,16 @@
 
   function renderGrid() {
     if (!S.filtered.length) {
+      const isFavsFilter = S.filter === 'favorites';
       D.grid.innerHTML = `<div class="state-msg" style="grid-column:1/-1">
-        <div class="icon">◻</div>
-        <h3>${S.search ? 'No matches' : 'Empty folder'}</h3>
-        <p>${S.search ? `No files match "<em>${esc(S.search)}</em>"` : 'This folder contains no files.'}</p>
+        <div class="icon">${S.search ? '◻' : isFavsFilter ? '♡' : '◻'}</div>
+        <h3>${S.search ? 'No matches' : isFavsFilter ? 'No favorites in this folder' : 'Empty folder'}</h3>
+        <p>${S.search
+          ? `No files match "<em>${esc(S.search)}</em>"`
+          : isFavsFilter
+            ? 'Hover a card and tap ♡ to save favorites — they persist across sessions.'
+            : 'This folder contains no files.'
+        }</p>
       </div>`;
       return;
     }
@@ -381,6 +433,7 @@
         thumbHtml = `<div class="thumb-icon">${typeIcon(t)}</div>`;
       }
 
+      const faved = isFav(file.id);
       return `
         <div class="card ${t==='folder'?'card-folder':''}"
              role="listitem" tabindex="0"
@@ -390,6 +443,15 @@
           <div class="card-thumb">
             ${thumbHtml}
             <span class="badge ${bc}">${bl}</span>
+            <button class="fav-btn ${faved ? 'faved' : ''}"
+                    data-fid="${esc(file.id)}"
+                    aria-label="${faved ? 'Remove from favorites' : 'Add to favorites'}"
+                    title="${faved ? 'Remove from favorites' : 'Add to favorites'}">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+                   stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+              </svg>
+            </button>
             ${t==='video' ? `<div class="play-overlay">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
                 <circle cx="12" cy="12" r="10" opacity=".25"/>
@@ -435,6 +497,15 @@
       };
       card.addEventListener('click', activate);
       card.addEventListener('keydown', e => (e.key==='Enter'||e.key===' ') && (e.preventDefault(), activate()));
+
+      // Fav button — stop propagation so it doesn't open the card
+      const favBtn = card.querySelector('.fav-btn');
+      if (favBtn) {
+        favBtn.addEventListener('click', e => {
+          e.stopPropagation();
+          toggleFav(favBtn.dataset.fid, favBtn);
+        });
+      }
     });
   }
 
@@ -734,6 +805,17 @@
 
   // Initialize dot on load
   updateKeyDot();
+
+  // Favorites header button — jump to favorites view if gallery is open
+  D.favHdrBtn.addEventListener('click', () => {
+    if (D.gallery.classList.contains('hidden')) return;
+    document.querySelectorAll('.ftab').forEach(t => t.classList.toggle('active', t.dataset.filter === 'favorites'));
+    S.filter = 'favorites';
+    applyFilter();
+  });
+
+  // Initialize favorites badge
+  updateFavBadge();
 
   D.form.addEventListener('submit', e => {
     e.preventDefault();

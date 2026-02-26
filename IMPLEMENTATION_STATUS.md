@@ -1,7 +1,7 @@
 # Darkroom — Implementation Status
 
 > **Last Updated**: 2026-02-26
-> **Current Milestone**: 1 ✅ Complete — Next planned: 2, 3, 4
+> **Current Milestone**: 3 ✅ Complete — Next planned: 4, 5, 6
 > **Project**: Darkroom — Drive Media Manager
 > **Vision**: Browse Your Media, Developed. Paste a Google Drive folder link → instant cinematic gallery.
 
@@ -24,7 +24,7 @@
 |-----------|------|-------|--------|--------|
 | 1 | MVP Core Gallery | 6 | ✅ 100% | 2026-02-26 |
 | 2 | Slideshow Mode | 5 | ✅ 100% | 2026-02-26 |
-| 3 | Favorites & Shortlist | 4 | ⬜ 0% | — |
+| 3 | Favorites & Shortlist | 4 | ✅ 100% | 2026-02-26 |
 | 4 | Multi-file ZIP Download | 4 | ⬜ 0% | — |
 | 5 | Date Auto-Grouping | 5 | ⬜ 0% | — |
 | 6 | URL Sharing & Deep Links | 4 | ⬜ 0% | — |
@@ -107,24 +107,28 @@ All DOM ID references between `index.html` and `script.js` verified — no misma
 
 ---
 
-## Milestone 3 — Favorites & Shortlist ⬜
+## Milestone 3 — Favorites & Shortlist ✅
 
 > **Goal**: Let viewers star items without editing the Drive folder — stored locally via localStorage.
-> **Status**: Not Started
+> **Status**: Complete
+> **Completed**: 2026-02-26
 
 ### Tasks
 
 | # | Task | Status |
 |---|------|--------|
-| 3.1 | Star/heart toggle button on each card | ⬜ |
-| 3.2 | LocalStorage persistence across sessions | ⬜ |
-| 3.3 | "Favorites" filter tab in toolbar | ⬜ |
-| 3.4 | Favorites count badge in header | ⬜ |
+| 3.1 | Heart toggle button on each card (top-right of thumb) | ✅ |
+| 3.2 | LocalStorage persistence keyed by Drive file ID | ✅ |
+| 3.3 | "♡ Favs" filter tab in toolbar | ✅ |
+| 3.4 | Favorites count badge (♥ N pill) in header | ✅ |
 
 ### Notes
-- Key by Drive file ID so favorites survive folder re-loads
-- Favorites are per-browser — no server or account needed
-- Could later export favorites list as a shareable URL
+- In-memory `_favs` Set cache — serialized to localStorage only on toggle (no repeated parsing)
+- Fav button: hidden by default, visible on card hover; always visible (pink) when faved
+- Header badge hidden when count = 0; click jumps to favorites view if gallery is open
+- Favorites empty-state shows ♡ icon with hint text ("Hover a card and tap ♡ to save…")
+- `S.filter === 'favorites'` filters current folder's files by `isFav(id)`
+- Cross-session: IDs stored as JSON array in `localStorage['darkroom_favs']`
 
 ---
 
