@@ -38,25 +38,46 @@
 ## Milestone 1 — MVP Core Gallery ✅
 
 > **Goal**: Paste a public Drive folder link → browse a beautiful cinematic gallery.
-> **Status**: Complete
+> **Status**: Complete (QA pass 2026-02-26)
 > **Completed**: 2026-02-26
 
 ### Tasks
 
-| # | Task | Status |
-|---|------|--------|
-| 1.1 | Google Drive API v3 integration (files.list, files.get) | ✅ |
-| 1.2 | Responsive masonry/grid with skeleton loading | ✅ |
-| 1.3 | Lightbox viewer — full-res images + video iframe embed | ✅ |
-| 1.4 | Search, filter by type, sort controls | ✅ |
-| 1.5 | Subfolder drill-down with breadcrumb navigation | ✅ |
-| 1.6 | Mobile responsive + touch swipe in lightbox | ✅ |
+| # | Task | Status | Notes |
+|---|------|--------|-------|
+| 1.1 | Google Drive API v3 integration (files.list, files.get) | ✅ | Clean — `apiFetch` / `apiFolderName` wired correctly |
+| 1.2 | Responsive masonry/grid with skeleton loading | ✅ | Clean — skeleton classes all present in CSS |
+| 1.3 | Lightbox viewer — full-res images + video iframe embed | ✅ | Clean — onerror fallback safe; `esc()` used on file.id |
+| 1.4 | Search, filter by type, sort controls | ✅ | Clean — all DOM IDs match; filter/sort/search flow correct |
+| 1.5 | Subfolder drill-down with breadcrumb navigation | ✅ | Fixed on QA pass — see QA Notes #1 |
+| 1.6 | Mobile responsive + touch swipe in lightbox | ✅ | Clean — breakpoints at 768px and 480px complete; touch swipe present |
 
 ### Notes
 - Modularized into `index.html` / `style.css` / `script.js`
-- API key bundled for public read-only access
+- API key stored in localStorage via settings modal (never committed)
 - Auto-loads up to 200 items, pagination for larger folders
 - URL param `?folder=<id>` for deep linking
+
+### QA Notes (2026-02-26)
+
+All DOM ID references between `index.html` and `script.js` verified — no mismatches found. All CSS classes used in JS template strings verified against `style.css` — no missing classes. Settings modal (`settingsBtn`, `settingsMod`, `apiKeyInput`, `apiKeySave`, `apiKeyClear`, `apiKeyClose`, `apiKeyDot`) all wire up correctly. Breadcrumb `renderCrumb()` uses `esc()` on both `f.id` and `f.name` before writing to HTML attributes — no XSS risk.
+
+**Bugs fixed:**
+
+1. **`loadMore()` permanent lock** (`script.js` line ~234): If `S.stack` was somehow empty when "Load more" was clicked, the early `return` exited before the `finally` block, leaving `S.loading = true` and the button disabled forever. Fixed by resetting `S.loading` and button state before returning.
+
+2. **Missing `noreferrer` on card action links** (`script.js` `renderGrid()`): Both the "Open" and "Save" `<a>` buttons used `rel="noopener"` but omitted `noreferrer`. This leaks the `Referer` header to the Drive destination and (in older browsers) does not fully isolate `window.opener`. Fixed to `rel="noopener noreferrer"` on both links.
+
+3. **Missing `noreferrer` in `window.open` call** (`script.js` `renderGrid()`): The fallback click handler for non-media, non-folder files called `window.open(..., 'noopener')`. Updated to `'noopener,noreferrer'` for consistency with the anchor links.
+
+**No issues found in:**
+- All DOM ID lookups (`D` object) match HTML exactly
+- All CSS classes referenced in JS template strings exist in `style.css`
+- `esc()` used consistently for all user/API-sourced strings in `innerHTML`
+- Lightbox `onerror` fallback URL is safe (file.id is `esc()`-encoded; Drive IDs are alphanumeric-only)
+- Breadcrumb click handlers use `el.dataset.id` / `el.dataset.name` (browser-decoded from the `esc()`-encoded attributes) — safe
+- Mobile breakpoints at 768px and 480px are complete for M1 scope
+- Settings modal overlay click-to-close, Escape key, and Enter-to-save all wired correctly
 
 ---
 

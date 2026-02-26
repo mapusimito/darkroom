@@ -231,7 +231,11 @@
     S.loading = true;
     D.loadBtn.textContent = 'Loading…'; D.loadBtn.disabled = true;
     const id = S.stack.at(-1)?.id;
-    if (!id) return;
+    if (!id) {
+      S.loading = false;
+      D.loadBtn.textContent = 'Load more files'; D.loadBtn.disabled = false;
+      return;
+    }
     try {
       const data = await apiFetch(id, S.pageToken);
       S.files.push(...(data.files || []));
@@ -383,7 +387,7 @@
             <div class="card-actions">
               <a class="act-btn"
                  href="${esc(file.webViewLink||'#')}"
-                 target="_blank" rel="noopener"
+                 target="_blank" rel="noopener noreferrer"
                  onclick="event.stopPropagation()">
                 <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                 Open
@@ -391,7 +395,7 @@
               ${file.webContentLink ? `
               <a class="act-btn"
                  href="${esc(file.webContentLink)}"
-                 target="_blank" rel="noopener"
+                 target="_blank" rel="noopener noreferrer"
                  onclick="event.stopPropagation()">
                 <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                 Save
@@ -408,7 +412,7 @@
         else if (type === 'image' || type === 'video') openLb(+midx);
         else {
           const f = S.files.find(x => x.id === id);
-          if (f?.webViewLink) window.open(f.webViewLink, '_blank', 'noopener');
+          if (f?.webViewLink) window.open(f.webViewLink, '_blank', 'noopener,noreferrer');
         }
       };
       card.addEventListener('click', activate);
