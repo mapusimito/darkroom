@@ -1,0 +1,24 @@
+# API key config (never commit your real key)
+config.js
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# Node (if a dev server is added later)
+node_modules/
+npm-debug.log*
+
+# Environment files
+.env
+.env.*
+!.env.example
