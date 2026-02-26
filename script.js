@@ -39,6 +39,11 @@
     filter:      'all',
     sort:        'name-asc',
     lbIdx:       -1,
+    // Slideshow state
+    slideshowActive: false,
+    slideshowIdx:    0,
+    slideshowTimer:  null,
+    slideshowPaused: false,
   };
 
   /* ─────────────────────────────────────────
@@ -74,6 +79,17 @@
     apiKeyClear: el('api-key-clear'),
     apiKeyClose: el('settings-close'),
     apiKeyDot:   el('api-key-dot'),
+    // slideshow
+    ssBtn:       el('slideshow-btn'),
+    ssOverlay:   el('slideshow'),
+    ssBody:      el('ss-body'),
+    ssName:      el('ss-name'),
+    ssCtr:       el('ss-ctr'),
+    ssProgress:  el('ss-progress'),
+    ssPlayBtn:   el('ss-play-btn'),
+    ssPlayIcon:  el('ss-play-icon'),
+    ssFsBtn:     el('ss-fs-btn'),
+    ssClose:     el('ss-close'),
   };
 
   /* ─────────────────────────────────────────
@@ -310,6 +326,8 @@
     S.media = list.filter(f => { const t = fileType(f.mimeType); return t==='image'||t==='video'; });
     renderGrid();
     D.count.textContent = list.length === 0 ? 'No files' : `${list.length} file${list.length!==1?'s':''}`;
+    // Show/hide slideshow button based on whether media is available
+    D.ssBtn.classList.toggle('hidden', S.media.length === 0);
   }
 
   /* ─────────────────────────────────────────
@@ -467,6 +485,207 @@
   }
 
   /* ─────────────────────────────────────────
+     SLIDESHOW
+  ───────────────────────────────────────── */
+  const SS_INTERVAL = 4000; // ms between slides
+  const KB_CLASSES  = ['kb1', 'kb2', 'kb3', 'kb4'];
+  let   _kbIdx      = 0;    // cycles through Ken Burns variants
+
+  // SVG templates for play/pause icons
+  const SVG_PAUSE = `<line x1="10" y1="15" x2="10" y2="9"/><line x1="14" y1="15" x2="14" y2="9"/>`;
+  const SVG_PLAY  = `<polygon points="5 3 19 12 5 21 5 3"/>`;
+
+  function openSlideshow() {
+    if (!S.media.length) return;
+    S.slideshowActive = true;
+    S.slideshowIdx    = 0;
+    S.slideshowPaused = false;
+    D.ssOverlay.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+    paintSlide(S.slideshowIdx);
+    startTimer();
+    updatePlayIcon();
+  }
+
+  function closeSlideshow() {
+    S.slideshowActive = false;
+    clearTimer();
+    D.ssOverlay.classList.add('hidden');
+    D.ssBody.innerHTML = '';
+    document.body.style.overflow = '';
+    // Exit fullscreen if active
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    }
+  }
+
+  function slideshowNext() {
+    S.slideshowIdx = (S.slideshowIdx + 1) % S.media.length;
+    paintSlide(S.slideshowIdx);
+    if (!S.slideshowPaused) restartTimer();
+  }
+
+  function slideshowPrev() {
+    S.slideshowIdx = (S.slideshowIdx - 1 + S.media.length) % S.media.length;
+    paintSlide(S.slideshowIdx);
+    if (!S.slideshowPaused) restartTimer();
+  }
+
+  function slideshowPause() {
+    S.slideshowPaused = true;
+    clearTimer();
+    updatePlayIcon();
+    stopProgressBar();
+  }
+
+  function slideshowResume() {
+    S.slideshowPaused = false;
+    updatePlayIcon();
+    restartTimer();
+  }
+
+  function paintSlide(idx) {
+    const file = S.media[idx];
+    if (!file) return;
+    const t = fileType(file.mimeType);
+
+    // Update footer text
+    D.ssName.textContent = file.name;
+    D.ssCtr.textContent  = `${idx + 1} / ${S.media.length}`;
+
+    // Remove old slides, keeping at most one outgoing
+    const existing = D.ssBody.querySelectorAll('.ss-slide');
+    existing.forEach((s, i) => {
+      if (i < existing.length - 1) s.remove(); // remove older ones immediately
+      else {
+        // fade out the last active slide
+        s.classList.remove('ss-active');
+        setTimeout(() => s.remove(), 450);
+      }
+    });
+
+    // Build new slide
+    const slide = document.createElement('div');
+    slide.className = 'ss-slide';
+
+    if (t === 'image') {
+      const kbClass = KB_CLASSES[_kbIdx % KB_CLASSES.length];
+      _kbIdx++;
+      const img = document.createElement('img');
+      img.src = `https://drive.google.com/uc?id=${file.id}&export=view`;
+      img.alt = file.name;
+      img.className = kbClass;
+      img.onerror = () => {
+        img.src = `https://drive.google.com/thumbnail?id=${file.id}&sz=w1600`;
+      };
+      slide.appendChild(img);
+    } else {
+      // Video — show iframe (no auto-advance timer while video is playing; timer still runs)
+      const ifr = document.createElement('iframe');
+      ifr.src           = `https://drive.google.com/file/d/${file.id}/preview`;
+      ifr.allow         = 'autoplay';
+      ifr.allowFullscreen = true;
+      ifr.loading       = 'lazy';
+      slide.appendChild(ifr);
+    }
+
+    D.ssBody.appendChild(slide);
+    // Trigger fade-in on next frame
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => slide.classList.add('ss-active'));
+    });
+
+    // Restart progress bar
+    if (!S.slideshowPaused) animateProgressBar(SS_INTERVAL);
+  }
+
+  function startTimer() {
+    clearTimer();
+    S.slideshowTimer = setTimeout(() => {
+      if (S.slideshowActive && !S.slideshowPaused) {
+        slideshowNext();
+      }
+    }, SS_INTERVAL);
+    if (!S.slideshowPaused) animateProgressBar(SS_INTERVAL);
+  }
+
+  function restartTimer() {
+    clearTimer();
+    startTimer();
+  }
+
+  function clearTimer() {
+    if (S.slideshowTimer) { clearTimeout(S.slideshowTimer); S.slideshowTimer = null; }
+  }
+
+  function animateProgressBar(duration) {
+    // Reset then animate width from 0→100% over duration ms
+    D.ssProgress.style.transition = 'none';
+    D.ssProgress.style.width      = '0%';
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        D.ssProgress.style.transition = `width ${duration}ms linear`;
+        D.ssProgress.style.width      = '100%';
+      });
+    });
+  }
+
+  function stopProgressBar() {
+    // Freeze progress bar at current position
+    const computed = getComputedStyle(D.ssProgress).width;
+    const wrapWidth = D.ssProgress.parentElement.offsetWidth;
+    const pct = wrapWidth > 0 ? (parseFloat(computed) / wrapWidth) * 100 : 0;
+    D.ssProgress.style.transition = 'none';
+    D.ssProgress.style.width      = pct + '%';
+  }
+
+  function updatePlayIcon() {
+    // Swap inner SVG content between pause bars and play triangle
+    D.ssPlayIcon.innerHTML = S.slideshowPaused ? SVG_PLAY : SVG_PAUSE;
+    D.ssPlayBtn.setAttribute('aria-label', S.slideshowPaused ? 'Resume' : 'Pause');
+    D.ssPlayIcon.setAttribute('fill', S.slideshowPaused ? 'currentColor' : 'none');
+    D.ssPlayIcon.setAttribute('stroke', S.slideshowPaused ? 'none' : 'currentColor');
+  }
+
+  function toggleFullscreen() {
+    if (!document.fullscreenElement) {
+      D.ssOverlay.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen().catch(() => {});
+    }
+  }
+
+  // Slideshow button click
+  D.ssBtn.addEventListener('click', openSlideshow);
+
+  // Footer controls
+  D.ssClose.addEventListener('click', closeSlideshow);
+  D.ssFsBtn.addEventListener('click', toggleFullscreen);
+  D.ssPlayBtn.addEventListener('click', () => {
+    if (S.slideshowPaused) slideshowResume();
+    else                   slideshowPause();
+  });
+
+  // Click on image area → pause/resume
+  D.ssBody.addEventListener('click', e => {
+    if (e.target.tagName === 'IFRAME') return; // don't interfere with video
+    if (S.slideshowPaused) slideshowResume();
+    else                   slideshowPause();
+  });
+
+  // Touch swipe for slideshow
+  let ssTx = 0;
+  D.ssOverlay.addEventListener('touchstart', e => { ssTx = e.touches[0].clientX; }, { passive: true });
+  D.ssOverlay.addEventListener('touchend', e => {
+    if (!S.slideshowActive) return;
+    const dx = e.changedTouches[0].clientX - ssTx;
+    if (Math.abs(dx) > 50) {
+      if (dx < 0) slideshowNext();
+      else        slideshowPrev();
+    }
+  });
+
+  /* ─────────────────────────────────────────
      EVENTS
   ───────────────────────────────────────── */
   /* ─────────────────────────────────────────
@@ -555,6 +774,15 @@
   D.lb.addEventListener('click', e => { if (e.target === D.lb) closeLb(); });
 
   document.addEventListener('keydown', e => {
+    // Slideshow keyboard handling — takes priority over lightbox
+    if (S.slideshowActive) {
+      if (e.key === 'Escape') { e.preventDefault(); closeSlideshow(); return; }
+      if (e.key === ' ')      { e.preventDefault(); if (S.slideshowPaused) slideshowResume(); else slideshowPause(); return; }
+      if (e.key === 'ArrowLeft')  { e.preventDefault(); slideshowPrev(); return; }
+      if (e.key === 'ArrowRight') { e.preventDefault(); slideshowNext(); return; }
+      return; // consume all other keys while slideshow is active
+    }
+    // Lightbox keyboard handling
     if (D.lb.classList.contains('hidden')) return;
     if (e.key === 'Escape')      closeLb();
     if (e.key === 'ArrowLeft')   lbNav(-1);

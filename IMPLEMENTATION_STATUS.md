@@ -23,7 +23,7 @@
 | Milestone | Name | Tasks | Status | Target |
 |-----------|------|-------|--------|--------|
 | 1 | MVP Core Gallery | 6 | ✅ 100% | 2026-02-26 |
-| 2 | Slideshow Mode | 5 | ⬜ 0% | — |
+| 2 | Slideshow Mode | 5 | ✅ 100% | 2026-02-26 |
 | 3 | Favorites & Shortlist | 4 | ⬜ 0% | — |
 | 4 | Multi-file ZIP Download | 4 | ⬜ 0% | — |
 | 5 | Date Auto-Grouping | 5 | ⬜ 0% | — |
@@ -81,25 +81,29 @@ All DOM ID references between `index.html` and `script.js` verified — no misma
 
 ---
 
-## Milestone 2 — Slideshow Mode ⬜
+## Milestone 2 — Slideshow Mode ✅
 
 > **Goal**: Auto-advancing full-screen slideshow with cinematic transitions — great for TV casting or family gatherings.
-> **Status**: Not Started
+> **Status**: Complete
+> **Completed**: 2026-02-26
 
 ### Tasks
 
 | # | Task | Status |
 |---|------|--------|
-| 2.1 | Slideshow button in toolbar | ⬜ |
-| 2.2 | Auto-advance timer with configurable interval (3s default) | ⬜ |
-| 2.3 | Ken Burns pan & zoom CSS animation on each image | ⬜ |
-| 2.4 | Full-screen API integration (Fullscreen API) | ⬜ |
-| 2.5 | Pause/resume on click + keyboard spacebar | ⬜ |
+| 2.1 | Slideshow button in toolbar | ✅ |
+| 2.2 | Auto-advance timer with configurable interval (4s default) | ✅ |
+| 2.3 | Ken Burns pan & zoom CSS animation on each image | ✅ |
+| 2.4 | Full-screen API integration (Fullscreen API) | ✅ |
+| 2.5 | Pause/resume on click + keyboard spacebar | ✅ |
 
 ### Notes
-- Ken Burns effect: slow scale(1.0→1.08) + translate on each image, 5s duration
-- Should respect current filter — only show filtered media in slideshow
-- Show progress bar at bottom of screen during slideshow
+- Ken Burns effect: slow scale(1.0→1.07) + 4 variant translate directions, 5s duration each
+- Respects current filter — uses S.media[] (filtered image+video items)
+- Progress bar at bottom animates linearly over the 4s interval
+- Keyboard: Space=pause/resume, Escape=close, ArrowLeft/Right=navigate
+- Touch swipe left/right navigates slides
+- Fullscreen API via document.requestFullscreen on the overlay element
 
 ---
 

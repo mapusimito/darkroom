@@ -625,5 +625,130 @@ main { max-width: 1640px; margin: 0 auto; padding: 32px 28px; }
 }
 .api-key-clear:hover { color: var(--b-pdf); }
 
+/* ===========================
+   SLIDESHOW BUTTON
+=========================== */
+.slideshow-btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: var(--accent-dim); border: 1px solid var(--accent);
+  border-radius: var(--r); padding: 7px 14px;
+  color: var(--accent); font-family: var(--ff-ui); font-size: .72rem;
+  font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+  cursor: pointer; transition: background .2s, box-shadow .2s, transform .1s;
+  white-space: nowrap; flex-shrink: 0;
+}
+.slideshow-btn:hover {
+  background: rgba(255,107,53,.22);
+  box-shadow: 0 0 0 3px var(--accent-dim);
+}
+.slideshow-btn:active { transform: scale(.97); }
+
+/* ===========================
+   SLIDESHOW OVERLAY
+=========================== */
+.ss-overlay {
+  position: fixed; inset: 0; z-index: 800;
+  background: #000;
+  display: flex; flex-direction: column;
+  animation: fadeIn .25s ease;
+}
+.ss-overlay.hidden { display: none; }
+
+/* Image container */
+.ss-body {
+  flex: 1; position: relative; overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* Slide wrapper — two slots for cross-fade */
+.ss-slide {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; transition: opacity .4s ease;
+  pointer-events: none;
+}
+.ss-slide.ss-active { opacity: 1; pointer-events: auto; }
+
+.ss-slide img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  will-change: transform;
+}
+
+/* Ken Burns animation — applied fresh on each slide via JS */
+@keyframes kenBurns1 {
+  0%   { transform: scale(1.0)  translate(0%,    0%); }
+  100% { transform: scale(1.07) translate(-1.5%, -1%); }
+}
+@keyframes kenBurns2 {
+  0%   { transform: scale(1.0)  translate(0%,    0%); }
+  100% { transform: scale(1.07) translate(1.5%,  1%); }
+}
+@keyframes kenBurns3 {
+  0%   { transform: scale(1.0)  translate(0%,    0%); }
+  100% { transform: scale(1.07) translate(-1%,   1.5%); }
+}
+@keyframes kenBurns4 {
+  0%   { transform: scale(1.0)  translate(0%,    0%); }
+  100% { transform: scale(1.07) translate(1%,   -1.5%); }
+}
+.ss-slide img.kb1 { animation: kenBurns1 5s ease-in-out forwards; }
+.ss-slide img.kb2 { animation: kenBurns2 5s ease-in-out forwards; }
+.ss-slide img.kb3 { animation: kenBurns3 5s ease-in-out forwards; }
+.ss-slide img.kb4 { animation: kenBurns4 5s ease-in-out forwards; }
+
+/* Video iframe in slideshow */
+.ss-slide iframe {
+  width: 100%; height: 100%;
+  border: none;
+}
+
+/* Footer bar */
+.ss-footer {
+  flex-shrink: 0;
+  background: linear-gradient(to top, rgba(0,0,0,.92) 0%, rgba(0,0,0,.6) 100%);
+  padding: 14px 24px 18px;
+  display: flex; align-items: center; gap: 14px;
+  flex-wrap: wrap;
+}
+
+.ss-name {
+  font-family: var(--ff-disp); font-size: .95rem; color: var(--txt);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 340px; flex-shrink: 1;
+}
+
+.ss-ctr {
+  font-family: var(--ff-mono); font-size: .72rem; color: var(--txt-muted);
+  white-space: nowrap; flex-shrink: 0;
+}
+
+.ss-progress-wrap {
+  flex: 1; min-width: 60px;
+  height: 3px; background: rgba(255,255,255,.12);
+  border-radius: 2px; overflow: hidden;
+}
+.ss-progress {
+  height: 100%; width: 0%;
+  background: var(--accent);
+  transition: width linear;
+  border-radius: 2px;
+}
+
+.ss-controls {
+  display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+}
+
+.ss-ctrl-btn {
+  background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.12);
+  border-radius: 50%; width: 36px; height: 36px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--txt-dim); cursor: pointer; transition: all .18s;
+}
+.ss-ctrl-btn:hover {
+  background: var(--accent-dim); border-color: var(--accent); color: var(--accent);
+}
+.ss-close-btn:hover { background: rgba(224,68,68,.15); border-color: var(--b-pdf); color: var(--b-pdf); }
+
 .hidden { display: none !important; }
 #gallery-container { animation: fadeUp .35s ease; }

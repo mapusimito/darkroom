@@ -102,6 +102,14 @@
         <button class="ftab" data-filter="doc">Docs</button>
       </div>
 
+      <button class="slideshow-btn hidden" id="slideshow-btn" aria-label="Start slideshow" title="Start slideshow">
+        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24"
+             fill="currentColor" stroke="none">
+          <polygon points="5 3 19 12 5 21 5 3"/>
+        </svg>
+        Slideshow
+      </button>
+
       <select class="sort-sel" id="sort-sel" aria-label="Sort order">
         <option value="name-asc">Name A→Z</option>
         <option value="name-desc">Name Z→A</option>
@@ -183,6 +191,44 @@
       <button class="api-key-save" id="api-key-save">Save</button>
     </div>
     <button class="api-key-clear" id="api-key-clear">Clear saved key</button>
+  </div>
+</div>
+
+<!-- ===================================
+     SLIDESHOW OVERLAY
+=================================== -->
+<div class="ss-overlay hidden" id="slideshow" role="dialog" aria-modal="true" aria-label="Slideshow">
+  <div class="ss-body" id="ss-body"></div>
+  <div class="ss-footer" id="ss-footer">
+    <div class="ss-name" id="ss-name"></div>
+    <div class="ss-ctr" id="ss-ctr"></div>
+    <div class="ss-progress-wrap">
+      <div class="ss-progress" id="ss-progress"></div>
+    </div>
+    <div class="ss-controls">
+      <button class="ss-ctrl-btn" id="ss-play-btn" aria-label="Pause">
+        <svg id="ss-play-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+             fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="10" y1="15" x2="10" y2="9"/>
+          <line x1="14" y1="15" x2="14" y2="9"/>
+        </svg>
+      </button>
+      <button class="ss-ctrl-btn" id="ss-fs-btn" aria-label="Toggle fullscreen">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+             fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="15 3 21 3 21 9"/>
+          <polyline points="9 21 3 21 3 15"/>
+          <line x1="21" y1="3" x2="14" y2="10"/>
+          <line x1="3" y1="21" x2="10" y2="14"/>
+        </svg>
+      </button>
+      <button class="ss-ctrl-btn ss-close-btn" id="ss-close" aria-label="Close slideshow">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+             fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 6 6 18M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
   </div>
 </div>
 
