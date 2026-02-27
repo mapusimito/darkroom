@@ -1461,3 +1461,254 @@ body.embed-mode .date-nav { display: none !important; }
 body.embed-mode .stats-bar { padding: 8px 16px; }
 /* Gallery container fills full viewport height in embed mode */
 body.embed-mode #gallery-container { padding: 0 16px 16px; }
+
+/* ===========================
+   VIEW TOGGLE (M10)
+=========================== */
+.view-toggle {
+  display: inline-flex; align-items: center;
+  border: 1px solid var(--border); border-radius: var(--r);
+  overflow: hidden; flex-shrink: 0;
+}
+
+.view-btn {
+  background: transparent; border: none; border-radius: 0;
+  width: 32px; height: 32px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--txt-muted); cursor: pointer; transition: all .18s;
+  position: relative;
+}
+.view-btn + .view-btn { border-left: 1px solid var(--border); }
+.view-btn:hover { background: var(--accent-dim); color: var(--txt-dim); }
+.view-btn.active { background: var(--accent-dim); color: var(--accent); }
+
+/* Print button (M10) */
+.print-btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: transparent; border: 1px solid var(--border);
+  border-radius: var(--r); padding: 7px 14px;
+  color: var(--txt-muted); font-family: var(--ff-ui); font-size: .72rem;
+  font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+  cursor: pointer; transition: all .2s; white-space: nowrap; flex-shrink: 0;
+}
+.print-btn:hover { border-color: var(--txt-dim); color: var(--txt); background: rgba(255,255,255,.05); }
+.print-btn:active { transform: scale(.97); }
+
+/* ===========================
+   TIMELINE VIEW (M10)
+=========================== */
+.timeline-wrap {
+  padding: 0 0 60px;
+}
+
+/* Year separator — full-width editorial year banner */
+.tl-year-sep {
+  grid-column: 1 / -1;
+  display: flex; align-items: center; gap: 20px;
+  padding: 36px 0 16px;
+  margin-top: 8px;
+}
+.tl-year-sep::before {
+  content: '';
+  flex: 1; height: 1px;
+  background: linear-gradient(to right, transparent, var(--border2));
+}
+.tl-year-sep-label {
+  font-family: var(--ff-disp);
+  font-size: 3.2rem; font-weight: 700; font-style: italic;
+  color: var(--txt-muted); letter-spacing: -.02em;
+  line-height: 1; flex-shrink: 0;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--amber) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.tl-year-sep::after {
+  content: '';
+  flex: 1; height: 1px;
+  background: linear-gradient(to left, transparent, var(--border2));
+}
+
+/* Month section */
+.tl-section {
+  margin-bottom: 40px;
+}
+
+.tl-section-hdr {
+  display: flex; align-items: baseline; gap: 12px;
+  padding: 0 0 14px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 16px;
+}
+
+.tl-month-label {
+  font-family: var(--ff-ui);
+  font-size: .9rem; font-weight: 700; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--txt-dim);
+}
+
+.tl-count {
+  font-family: var(--ff-mono); font-size: .7rem;
+  color: var(--txt-muted);
+}
+
+/* Photo strip — wrapping grid of square thumbs */
+.tl-strip {
+  display: flex; flex-wrap: wrap; gap: 6px;
+}
+
+.tl-card {
+  width: 156px; height: 156px;
+  border-radius: var(--r);
+  overflow: hidden; position: relative;
+  background: var(--card);
+  cursor: pointer; flex-shrink: 0;
+  transition: transform .18s, box-shadow .18s;
+}
+.tl-card:hover { transform: scale(1.03); box-shadow: var(--shadow-md); z-index: 1; }
+.tl-card:hover .tl-card-overlay { opacity: 1; }
+
+.tl-card img {
+  width: 100%; height: 100%;
+  object-fit: cover; display: block;
+}
+
+/* Hover overlay with file name */
+.tl-card-overlay {
+  position: absolute; inset: 0;
+  background: var(--card-overlay);
+  display: flex; align-items: flex-end;
+  padding: 8px;
+  opacity: 0; transition: opacity .18s;
+}
+.tl-card-name {
+  font-size: .65rem; color: rgba(255,255,255,.85);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 100%; line-height: 1.3;
+}
+
+/* Play badge for videos */
+.tl-play-badge {
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 36px; height: 36px; border-radius: 50%;
+  background: rgba(0,0,0,.55);
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; pointer-events: none;
+}
+.tl-play-badge svg { transform: translateX(1px); }
+
+/* Fav button in timeline card */
+.tl-card .fav-btn {
+  position: absolute; top: 6px; right: 6px;
+  opacity: 0; transition: opacity .18s;
+}
+.tl-card:hover .fav-btn,
+.tl-card .fav-btn.faved { opacity: 1; }
+
+/* Non-media file card in timeline */
+.tl-file-card {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 8px;
+  padding: 12px;
+  background: var(--card); color: var(--txt-muted);
+  cursor: pointer;
+}
+.tl-file-card .tl-file-icon {
+  width: 38px; height: 38px; opacity: .7;
+}
+.tl-file-card .tl-file-name {
+  font-size: .62rem; text-align: center;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 100%; color: var(--txt-muted); line-height: 1.3;
+}
+.tl-file-card:hover { background: var(--card-hov); color: var(--txt-dim); }
+
+/* ===========================
+   TIMELINE YEAR MINIMAP (M10)
+=========================== */
+.tl-minimap {
+  position: fixed; right: 24px; top: 50%;
+  transform: translateY(-50%);
+  z-index: 100;
+  display: flex; flex-direction: column; align-items: flex-end;
+  gap: 0; padding: 10px 0;
+  /* hidden on narrow screens */
+}
+
+.tl-mm-track {
+  position: absolute; right: 7px; top: 10px; bottom: 10px;
+  width: 1px; background: var(--border2);
+  pointer-events: none;
+}
+
+.tl-mm-item {
+  display: flex; align-items: center; gap: 8px;
+  cursor: pointer; padding: 4px 0;
+  position: relative;
+  transition: all .18s;
+}
+
+.tl-mm-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--border2); flex-shrink: 0;
+  transition: all .18s;
+  border: 1.5px solid transparent;
+}
+.tl-mm-item:hover .tl-mm-dot { background: var(--txt-muted); }
+.tl-mm-item.active .tl-mm-dot {
+  background: var(--accent);
+  border-color: var(--accent-glow);
+  box-shadow: 0 0 8px var(--accent-glow);
+  transform: scale(1.35);
+}
+
+.tl-mm-label {
+  font-family: var(--ff-mono); font-size: .65rem;
+  color: var(--txt-muted); white-space: nowrap;
+  order: -1; /* label left of dot */
+  opacity: 0; transition: opacity .18s;
+  pointer-events: none;
+}
+.tl-mm-item:hover .tl-mm-label,
+.tl-mm-item.active .tl-mm-label { opacity: 1; }
+.tl-mm-item.active .tl-mm-label { color: var(--accent); }
+
+@media (max-width: 1280px) {
+  .tl-minimap { display: none !important; }
+}
+
+/* ===========================
+   PRINT / PDF EXPORT (M10)
+=========================== */
+@media print {
+  /* Hide everything UI-related */
+  header, .toolbar, .stats-bar, .sel-bar,
+  .tl-minimap, .date-nav, .drive-sidebar,
+  .lightbox, .ss-overlay, .settings-modal, .embed-modal,
+  .print-btn, .load-more-wrap { display: none !important; }
+
+  body { background: #fff !important; color: #000 !important; }
+  body::before, body::after { display: none !important; }
+  main { padding: 0 !important; }
+
+  /* Timeline sections print cleanly */
+  .tl-year-sep-label {
+    background: none !important;
+    -webkit-text-fill-color: #000 !important;
+    color: #222 !important;
+  }
+  .tl-section-hdr { border-color: #ddd !important; }
+  .tl-month-label { color: #333 !important; }
+  .tl-count { color: #888 !important; }
+
+  .tl-card {
+    break-inside: avoid;
+    box-shadow: none !important;
+  }
+  .tl-card-overlay { opacity: 1 !important; }
+  .tl-strip { gap: 4px !important; }
+
+  /* Keep grid in print mode too */
+  .grid { gap: 4px !important; }
+  .card { break-inside: avoid; }
+}

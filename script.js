@@ -15,6 +15,7 @@
   const AI_THRESHOLD  = 0.30;  // minimum confidence to include a tag
   const AI_MAX_PREDS  = 5;     // predictions to request from MobileNet
   const AI_SHOW_TAGS  = 3;     // max tags shown per card
+  const LS_VIEW_MODE  = 'darkroom_view_mode';
 
   /* ─────────────────────────────────────────
      EMBED MODE STATE (M9)
@@ -149,6 +150,8 @@
     slideshowPaused: false,
     // Date grouping (M5)
     collapsedGroups: new Set(),
+    // View mode (M10)
+    viewMode: 'grid', // 'grid' | 'timeline'
   };
 
   /* ─────────────────────────────────────────
@@ -214,6 +217,12 @@
     apiKeyDot:   el('api-key-dot'),
     // date nav (M5)
     dateNav:     el('date-nav'),
+    // view toggle (M10)
+    viewToggle:     el('view-toggle'),
+    viewGridBtn:    el('view-grid-btn'),
+    viewTimelineBtn:el('view-timeline-btn'),
+    printBtn:       el('print-btn'),
+    tlMinimap:      el('tl-minimap'),
     // embed modal (M9)
     embedBtn:    el('embed-btn'),
     embedModal:  el('embed-modal'),
@@ -329,6 +338,7 @@
     if (S.sort   && S.sort   !== 'name-asc') p.set('sort', S.sort);
     if (S.search)                         p.set('q',      S.search);
     if (S.lbIdx >= 0 && S.media[S.lbIdx]) p.set('item', S.media[S.lbIdx].id);
+    if (S.viewMode && S.viewMode !== 'grid') p.set('view', S.viewMode); // M10
     if (_isEmbed) p.set('embed', '1'); // M9: preserve embed param in URL history
     const url = location.pathname + '?' + p.toString();
     const shouldPush = _nextSyncPush && !_skipNextSync;
@@ -1130,6 +1140,12 @@
   }
 
   function renderGrid() {
+    // M10: timeline view mode takes priority
+    if (S.viewMode === 'timeline') {
+      renderTimeline();
+      return;
+    }
+
     if (!S.filtered.length) {
       const isFavsFilter = S.filter === 'favorites';
       D.grid.innerHTML = `<div class="state-msg" style="grid-column:1/-1">
@@ -1528,6 +1544,189 @@
   });
 
   /* ─────────────────────────────────────────
+     TIMELINE VIEW (M10)
+  ───────────────────────────────────────── */
+  let _tlObserver = null; // IntersectionObserver for minimap
+
+  // Build a single square card for the timeline strip
+  function buildTlCard(file) {
+    const t    = fileType(file.mimeType);
+    const midx = S.media.findIndex(f => f.id === file.id);
+    const thumb = thumbUrl(file, t);
+    const faved = isFav(file.id);
+
+    if (t === 'folder') {
+      return `<div class="tl-card tl-file-card" tabindex="0" role="button"
+                   data-id="${esc(file.id)}" data-type="folder" data-fname="${esc(file.name)}">
+        <div class="tl-file-icon">${typeIcon('folder')}</div>
+        <span class="tl-file-name" title="${esc(file.name)}">${esc(file.name)}</span>
+      </div>`;
+    }
+
+    if (thumb) {
+      return `<div class="tl-card" tabindex="0" role="button"
+                   data-id="${esc(file.id)}" data-type="${t}" data-midx="${midx}">
+        <img src="${esc(thumb)}" alt="${esc(file.name)}" loading="lazy"
+             onerror="this.style.display='none'">
+        ${t === 'video' ? `<div class="tl-play-badge">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="white">
+            <polygon points="5 3 19 12 5 21 5 3"/>
+          </svg></div>` : ''}
+        <div class="tl-card-overlay">
+          <span class="tl-card-name">${esc(file.name)}</span>
+        </div>
+        <button class="fav-btn ${faved ? 'faved' : ''}"
+                data-fid="${esc(file.id)}"
+                aria-label="${faved ? 'Remove from favorites' : 'Add to favorites'}"
+                title="${faved ? 'Remove from favorites' : 'Add to favorites'}">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+          </svg>
+        </button>
+      </div>`;
+    }
+
+    // No thumbnail — icon card
+    return `<div class="tl-card tl-file-card" tabindex="0" role="button"
+                 data-id="${esc(file.id)}" data-type="${t}" data-midx="${midx}"
+                 data-fname="${t === 'folder' ? esc(file.name) : ''}">
+      <div class="tl-file-icon">${typeIcon(t)}</div>
+      <span class="tl-file-name" title="${esc(file.name)}">${esc(file.name)}</span>
+    </div>`;
+  }
+
+  // Build the fixed right-side year minimap for timeline view
+  function buildTlMinimap(years) {
+    if (!D.tlMinimap) return;
+    if (_tlObserver) { _tlObserver.disconnect(); _tlObserver = null; }
+    if (!years.length) { D.tlMinimap.classList.add('hidden'); return; }
+
+    D.tlMinimap.innerHTML =
+      `<div class="tl-mm-track"></div>` +
+      years.map(y =>
+        `<div class="tl-mm-item" data-year="${esc(y)}">
+           <span class="tl-mm-label">${esc(y)}</span>
+           <div class="tl-mm-dot"></div>
+         </div>`
+      ).join('');
+    D.tlMinimap.classList.remove('hidden');
+
+    // Highlight the minimap item whose year banner is in view
+    _tlObserver = new IntersectionObserver(entries => {
+      for (const entry of entries) {
+        const year    = entry.target.dataset.year;
+        const mmItem  = D.tlMinimap.querySelector(`.tl-mm-item[data-year="${year}"]`);
+        if (mmItem) mmItem.classList.toggle('active', entry.isIntersecting);
+      }
+    }, { rootMargin: '-62px 0px -50% 0px', threshold: 0 });
+
+    document.querySelectorAll('.tl-year-sep').forEach(sep => _tlObserver.observe(sep));
+
+    // Click → smooth scroll to year banner
+    D.tlMinimap.querySelectorAll('.tl-mm-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const sep = document.getElementById(`tl-year-${item.dataset.year}`);
+        if (sep) sep.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    });
+  }
+
+  // Main timeline renderer — replaces the grid when viewMode === 'timeline'
+  function renderTimeline() {
+    buildDateNav([]); // hide the M5 date-nav sidebar when timeline is active
+    D.grid.classList.remove('grid-timeline');
+
+    const groups = groupFiles(S.filtered); // grouped newest-first by month
+
+    if (!groups.length) {
+      D.grid.innerHTML = `<div class="state-msg" style="grid-column:1/-1">
+        <div class="icon">${S.search ? '◻' : S.filter === 'favorites' ? '♡' : '◻'}</div>
+        <h3>${S.search ? 'No matches' : S.filter === 'favorites' ? 'No favorites in this folder' : 'Empty folder'}</h3>
+        <p>${S.search
+          ? `No files match "<em>${esc(S.search)}</em>"`
+          : S.filter === 'favorites'
+            ? 'Hover a card and tap ♡ to save favorites — they persist across sessions.'
+            : 'This folder contains no files.'
+        }</p>
+      </div>`;
+      buildTlMinimap([]);
+      return;
+    }
+
+    // Collect unique years for the minimap
+    const years = [...new Set(groups.map(g => g.key.split('-')[0]))];
+
+    let html = '<div class="timeline-wrap">';
+    let lastYear = null;
+
+    for (const grp of groups) {
+      const year = grp.key.split('-')[0];
+
+      // Year separator banner
+      if (year !== lastYear) {
+        html += `<div class="tl-year-sep" id="tl-year-${esc(year)}" data-year="${esc(year)}">
+          <span class="tl-year-sep-label">${esc(year)}</span>
+        </div>`;
+        lastYear = year;
+      }
+
+      // Month section
+      html += `<div class="tl-section" id="tl-group-${esc(grp.key)}" data-gkey="${esc(grp.key)}">
+        <div class="tl-section-hdr">
+          <span class="tl-month-label">${esc(grp.label)}</span>
+          <span class="tl-count">${grp.files.length} item${grp.files.length !== 1 ? 's' : ''}</span>
+        </div>
+        <div class="tl-strip">
+          ${grp.files.map(f => buildTlCard(f)).join('')}
+        </div>
+      </div>`;
+    }
+    html += '</div>';
+    D.grid.innerHTML = html;
+
+    // Wire events on all tl-cards
+    D.grid.querySelectorAll('.tl-card').forEach(card => {
+      const { id, type, midx, fname } = card.dataset;
+      const activate = () => {
+        if (type === 'folder')                    browse(id, fname);
+        else if (type === 'image' || type === 'video') openLb(+midx);
+        else {
+          const f = S.files.find(x => x.id === id);
+          if (f?.webViewLink) window.open(f.webViewLink, '_blank', 'noopener,noreferrer');
+        }
+      };
+      card.addEventListener('click', e => {
+        if (e.target.closest('.fav-btn')) return; // handled separately
+        activate();
+      });
+      card.addEventListener('keydown', e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), activate()));
+
+      const favBtn = card.querySelector('.fav-btn');
+      if (favBtn) {
+        favBtn.addEventListener('click', e => {
+          e.stopPropagation();
+          toggleFav(favBtn.dataset.fid, favBtn);
+        });
+      }
+    });
+
+    buildTlMinimap(years);
+  }
+
+  // Switch between grid and timeline view modes
+  function setViewMode(mode) {
+    S.viewMode = mode;
+    try { localStorage.setItem(LS_VIEW_MODE, mode); } catch {}
+    D.viewGridBtn.classList.toggle('active', mode === 'grid');
+    D.viewTimelineBtn.classList.toggle('active', mode === 'timeline');
+    // Print button only visible in timeline mode
+    D.printBtn.classList.toggle('hidden', mode !== 'timeline');
+    // Re-render with new view mode
+    renderGrid();
+  }
+
+  /* ─────────────────────────────────────────
      EMBED WIDGET (M9)
   ───────────────────────────────────────── */
   function buildEmbedSrc() {
@@ -1768,6 +1967,11 @@
     );
   });
 
+  /* ─── View toggle (M10) ────────────────── */
+  D.viewGridBtn.addEventListener('click', () => { if (S.viewMode !== 'grid') setViewMode('grid'); });
+  D.viewTimelineBtn.addEventListener('click', () => { if (S.viewMode !== 'timeline') setViewMode('timeline'); });
+  D.printBtn.addEventListener('click', () => window.print());
+
   /* ─── Copy gallery link (M6) ───────────── */
   D.copyLinkBtn.addEventListener('click', () => {
     navigator.clipboard.writeText(location.href).then(
@@ -1786,6 +1990,12 @@
     _pendingSort   = p.get('sort')   || 'name-asc';
     _pendingSearch = p.get('q')      || '';
     _pendingItem   = p.get('item');
+    // M10: restore view mode
+    const pView = p.get('view');
+    S.viewMode = (pView === 'timeline') ? 'timeline' : 'grid';
+    D.viewGridBtn.classList.toggle('active', S.viewMode === 'grid');
+    D.viewTimelineBtn.classList.toggle('active', S.viewMode === 'timeline');
+    D.printBtn.classList.toggle('hidden', S.viewMode !== 'timeline');
     S.stack = [];
     browse(folderId);
   });
@@ -1798,6 +2008,14 @@
     if (bp.get('sort'))   _pendingSort   = bp.get('sort');
     if (bp.get('q'))      _pendingSearch = bp.get('q');
     _pendingItem = bp.get('item');
+    // M10: restore view mode from URL (takes precedence over localStorage)
+    const bootView = bp.get('view');
+    if (bootView === 'timeline') {
+      S.viewMode = 'timeline';
+      D.viewGridBtn.classList.remove('active');
+      D.viewTimelineBtn.classList.add('active');
+      D.printBtn.classList.remove('hidden');
+    }
     if (bootFolder) { D.input.value = bootFolder; S.stack = []; browse(bootFolder); }
   }
 
@@ -1811,6 +2029,18 @@
   /* ─── Embed mode boot (M9) ──────────────── */
   if (_isEmbed) {
     document.body.classList.add('embed-mode');
+  }
+
+  /* ─── View mode boot (M10) ──────────────── */
+  // Only restore from localStorage if URL didn't override it
+  if (S.viewMode === 'grid') {
+    const saved = localStorage.getItem(LS_VIEW_MODE);
+    if (saved === 'timeline') {
+      S.viewMode = 'timeline';
+      D.viewGridBtn.classList.remove('active');
+      D.viewTimelineBtn.classList.add('active');
+      D.printBtn.classList.remove('hidden');
+    }
   }
 
 })();

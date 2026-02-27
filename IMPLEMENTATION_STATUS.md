@@ -1,7 +1,7 @@
 # Darkroom — Implementation Status
 
 > **Last Updated**: 2026-02-27
-> **Current Milestone**: 9 ✅ Complete — Next planned: 10
+> **Current Milestone**: 10 ✅ Complete
 > **Project**: Darkroom — Drive Media Manager
 > **Vision**: Browse Your Media, Developed. Paste a Google Drive folder link → instant cinematic gallery.
 
@@ -31,7 +31,7 @@
 | 7 | Private Folder OAuth | 6 | ✅ 100% | 2026-02-27 |
 | 8 | AI Tagging (On-Device) | 7 | ✅ 100% | 2026-02-27 |
 | 9 | Embeddable Gallery Widget | 5 | ✅ 100% | 2026-02-27 |
-| 10 | Timeline View | 6 | ⬜ 0% | — |
+| 10 | Timeline View | 6 | ✅ 100% | 2026-02-27 |
 
 ---
 
@@ -310,27 +310,34 @@ All DOM ID references between `index.html` and `script.js` verified — no misma
 
 ---
 
-## Milestone 10 — Timeline View ⬜
+## Milestone 10 — Timeline View ✅
 
 > **Goal**: A vertical scrollable timeline of all media — a visual diary of memories organized chronologically.
-> **Status**: Not Started
+> **Status**: Complete
+> **Completed**: 2026-02-27
 
 ### Tasks
 
 | # | Task | Status |
 |---|------|--------|
-| 10.1 | Timeline view toggle (alongside grid view) | ⬜ |
-| 10.2 | Vertical scroll layout with date milestone markers | ⬜ |
-| 10.3 | Year/month header anchors with smooth scroll jump | ⬜ |
-| 10.4 | Mixed media rows (photos + videos in chronological strip) | ⬜ |
-| 10.5 | "Jump to year" mini-map on the right edge | ⬜ |
-| 10.6 | Print/export timeline as PDF (optional stretch goal) | ⬜ |
+| 10.1 | Timeline view toggle (alongside grid view) | ✅ |
+| 10.2 | Vertical scroll layout with date milestone markers | ✅ |
+| 10.3 | Year/month header anchors with smooth scroll jump | ✅ |
+| 10.4 | Mixed media rows (photos + videos in chronological strip) | ✅ |
+| 10.5 | "Jump to year" mini-map on the right edge | ✅ |
+| 10.6 | Print/export timeline as PDF (optional stretch goal) | ✅ |
 
 ### Notes
-- Timeline reads the same state as grid — same data, different render
-- Date markers should show count of items in that period
-- Mini-map: fixed right sidebar showing decade/year dots with scroll position indicator
-- This feature makes Darkroom feel like a personal photo book, not just a file browser
+- View toggle button group in toolbar (Grid ⊞ | Timeline ≡) — `S.viewMode = 'grid' | 'timeline'`, persisted in `localStorage['darkroom_view_mode']`
+- View mode synced to URL as `?view=timeline`; restored on boot (URL takes precedence over localStorage) and on browser back/forward
+- `renderTimeline()` — dedicated renderer; calls `groupFiles()` (same as M5 grouped grid) for chronological clustering
+- Timeline layout: editorial year banners (`.tl-year-sep`) with orange gradient text, then month sections (`.tl-section`) with header and wrapping strip of 156×156px square cards
+- All file types shown in timeline: images/videos as thumbnails, folders/docs as icon cards; clicking opens lightbox or browses folder
+- Fav-btn hover toggle works on timeline cards same as grid cards
+- Year mini-map (`.tl-minimap`): fixed right side, hidden below 1280px; IntersectionObserver on `.tl-year-sep` elements drives active state; click smooth-scrolls to year banner
+- `buildTlMinimap(years)` — year array from `groupFiles()` result; re-disconnects previous observer on re-render
+- Print button (toolbar, visible only in timeline mode) calls `window.print()`; `@media print` CSS hides all UI chrome and renders timeline cleanly for PDF export
+- `renderGrid()` checks `S.viewMode === 'timeline'` first, dispatching to `renderTimeline()` before any other render path
 
 ---
 

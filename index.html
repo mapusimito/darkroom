@@ -155,6 +155,44 @@
         <button class="ftab ftab-fav" data-filter="favorites">♡ Favs</button>
       </div>
 
+      <!-- View mode toggle (M10) -->
+      <div class="view-toggle" id="view-toggle" role="group" aria-label="View mode">
+        <button class="view-btn active" id="view-grid-btn" data-view="grid" aria-label="Grid view" title="Grid view">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24"
+               fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="7" rx="1"/>
+            <rect x="14" y="3" width="7" height="7" rx="1"/>
+            <rect x="3" y="14" width="7" height="7" rx="1"/>
+            <rect x="14" y="14" width="7" height="7" rx="1"/>
+          </svg>
+        </button>
+        <button class="view-btn" id="view-timeline-btn" data-view="timeline" aria-label="Timeline view" title="Timeline view">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24"
+               fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round">
+            <line x1="8" y1="6" x2="21" y2="6"/>
+            <line x1="8" y1="12" x2="21" y2="12"/>
+            <line x1="8" y1="18" x2="21" y2="18"/>
+            <line x1="3" y1="6" x2="3.01" y2="6"/>
+            <line x1="3" y1="12" x2="3.01" y2="12"/>
+            <line x1="3" y1="18" x2="3.01" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Print timeline (M10) -->
+      <button class="print-btn hidden" id="print-btn" aria-label="Print timeline" title="Print / Save as PDF">
+        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24"
+             fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="6 9 6 2 18 2 18 9"/>
+          <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+          <rect x="6" y="14" width="12" height="8"/>
+        </svg>
+        Print
+      </button>
+
       <button class="select-mode-btn" id="select-mode-btn" aria-label="Select files for download" title="Select files">
         <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24"
              fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -417,6 +455,9 @@
 
 <!-- DATE NAV SIDEBAR (M5) -->
 <div class="date-nav hidden" id="date-nav" aria-label="Navigate by date" role="navigation"></div>
+
+<!-- TIMELINE YEAR MINIMAP (M10) -->
+<div class="tl-minimap hidden" id="tl-minimap" role="navigation" aria-label="Jump to year"></div>
 
 <script src="script.js"></script>
 
