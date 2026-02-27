@@ -56,6 +56,16 @@
     </button>
   </div>
 
+  <!-- Embed code button (M9) -->
+  <button class="embed-btn hidden" id="embed-btn" aria-label="Get embed code" title="Embed this gallery on your website">
+    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24"
+         fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="16 18 22 12 16 6"/>
+      <polyline points="8 6 2 12 8 18"/>
+    </svg>
+  </button>
+
   <button class="copy-link-btn hidden" id="copy-link-btn" aria-label="Copy gallery link" title="Copy gallery link">
     <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24"
          fill="none" stroke="currentColor" stroke-width="2"
@@ -275,6 +285,50 @@
       <button class="api-key-save" id="client-id-save">Save</button>
     </div>
     <button class="api-key-clear" id="client-id-clear">Clear Client ID</button>
+  </div>
+</div>
+
+<!-- ===================================
+     EMBED CODE MODAL (M9)
+=================================== -->
+<div class="embed-modal hidden" id="embed-modal" role="dialog" aria-modal="true" aria-label="Get Embed Code">
+  <div class="embed-panel">
+    <div class="embed-head">
+      <div class="embed-title">Embed Gallery</div>
+      <button class="embed-close" id="embed-close" aria-label="Close embed modal">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+             fill="none" stroke="currentColor" stroke-width="2.2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 6 6 18M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+    <p class="embed-desc">
+      Embed this gallery inline on any blog, portfolio, or website using an iframe.
+      The lightbox, search, and filters all work inside the embed.
+    </p>
+    <div class="embed-controls">
+      <div class="embed-field">
+        <label class="embed-label" for="embed-width">Width</label>
+        <input class="embed-input" id="embed-width" type="text" value="100%" placeholder="100% or 800px" autocomplete="off">
+      </div>
+      <div class="embed-field">
+        <label class="embed-label" for="embed-height">Height</label>
+        <input class="embed-input" id="embed-height" type="text" value="600px" placeholder="600px" autocomplete="off">
+      </div>
+    </div>
+    <div class="embed-code-wrap">
+      <pre id="embed-code" class="embed-code"></pre>
+    </div>
+    <button class="embed-copy-btn" id="embed-copy">
+      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24"
+           fill="none" stroke="currentColor" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round">
+        <rect x="9" y="9" width="13" height="13" rx="2"/>
+        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+      </svg>
+      Copy Code
+    </button>
   </div>
 </div>
 

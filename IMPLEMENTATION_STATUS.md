@@ -1,7 +1,7 @@
 # Darkroom — Implementation Status
 
 > **Last Updated**: 2026-02-27
-> **Current Milestone**: 8 ✅ Complete — Next planned: 9, 10
+> **Current Milestone**: 9 ✅ Complete — Next planned: 10
 > **Project**: Darkroom — Drive Media Manager
 > **Vision**: Browse Your Media, Developed. Paste a Google Drive folder link → instant cinematic gallery.
 
@@ -30,7 +30,7 @@
 | 6 | URL Sharing & Deep Links | 4 | ✅ 100% | 2026-02-27 |
 | 7 | Private Folder OAuth | 6 | ✅ 100% | 2026-02-27 |
 | 8 | AI Tagging (On-Device) | 7 | ✅ 100% | 2026-02-27 |
-| 9 | Embeddable Gallery Widget | 5 | ⬜ 0% | — |
+| 9 | Embeddable Gallery Widget | 5 | ✅ 100% | 2026-02-27 |
 | 10 | Timeline View | 6 | ⬜ 0% | — |
 
 ---
@@ -281,25 +281,32 @@ All DOM ID references between `index.html` and `script.js` verified — no misma
 
 ---
 
-## Milestone 9 — Embeddable Gallery Widget ⬜
+## Milestone 9 — Embeddable Gallery Widget ✅
 
 > **Goal**: Generate a `<iframe>` embed code so any blog, portfolio, or website can show a live Darkroom gallery inline.
-> **Status**: Not Started
+> **Status**: Complete
+> **Completed**: 2026-02-27
 
 ### Tasks
 
 | # | Task | Status |
 |---|------|--------|
-| 9.1 | Embed mode URL param `?embed=1` for minimal iframe UI | ⬜ |
-| 9.2 | Hide header in embed mode, show compact toolbar only | ⬜ |
-| 9.3 | "Get embed code" button — generates `<iframe src="...">` snippet | ⬜ |
-| 9.4 | Copy-to-clipboard with code preview modal | ⬜ |
-| 9.5 | Postmessage API for parent page communication (optional) | ⬜ |
+| 9.1 | Embed mode URL param `?embed=1` for minimal iframe UI | ✅ |
+| 9.2 | Hide header in embed mode, show compact toolbar only | ✅ |
+| 9.3 | "Get embed code" button — generates `<iframe src="...">` snippet | ✅ |
+| 9.4 | Copy-to-clipboard with code preview modal | ✅ |
+| 9.5 | Postmessage API for parent page communication (optional) | ✅ |
 
 ### Notes
-- Embed mode should still support lightbox (opens within iframe)
-- Configurable height via URL param `?embed=1&height=600`
-- Embed code generator should include width/height HTML attributes
+- `_isEmbed` const evaluated once at boot from `?embed=1` URL param; adds `body.embed-mode` class
+- `body.embed-mode` CSS hides the header, drive sidebar, and date nav sidebar
+- Embed button (`#embed-btn`) shown in the header when a gallery is open, hidden in embed mode itself
+- `openEmbedModal()` builds the `<iframe>` snippet using `buildEmbedSrc()` — mirrors current URL with `?embed=1` + current folder/filter/sort state
+- Width/height inputs (default `100%` / `600px`) update the snippet live via `input` events
+- "Copy Code" button copies snippet via `navigator.clipboard`, shows toast, closes modal
+- `syncUrl()` preserves `?embed=1` in URL history entries when in embed mode (so back/forward navigation doesn't lose embed state)
+- PostMessage: `postParent()` sends `{ source: 'darkroom', type: 'lightbox:open'|'lightbox:close', fileId, fileName }` to `window.parent` when lightbox is opened/closed inside an iframe
+- Lightbox, search, filter, and folder navigation all fully functional inside the embed
 
 ---
 

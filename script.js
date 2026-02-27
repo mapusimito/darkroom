@@ -17,6 +17,11 @@
   const AI_SHOW_TAGS  = 3;     // max tags shown per card
 
   /* ─────────────────────────────────────────
+     EMBED MODE STATE (M9)
+  ───────────────────────────────────────── */
+  const _isEmbed = new URLSearchParams(location.search).get('embed') === '1';
+
+  /* ─────────────────────────────────────────
      URL SYNC STATE (M6)
   ───────────────────────────────────────── */
   let _nextSyncPush  = false; // next syncUrl() call should pushState
@@ -209,6 +214,14 @@
     apiKeyDot:   el('api-key-dot'),
     // date nav (M5)
     dateNav:     el('date-nav'),
+    // embed modal (M9)
+    embedBtn:    el('embed-btn'),
+    embedModal:  el('embed-modal'),
+    embedClose:  el('embed-close'),
+    embedWidth:  el('embed-width'),
+    embedHeight: el('embed-height'),
+    embedCode:   el('embed-code'),
+    embedCopy:   el('embed-copy'),
     // AI tagging (M8)
     aiBtn:       el('ai-btn'),
     aiStatus:    el('ai-status'),
@@ -316,6 +329,7 @@
     if (S.sort   && S.sort   !== 'name-asc') p.set('sort', S.sort);
     if (S.search)                         p.set('q',      S.search);
     if (S.lbIdx >= 0 && S.media[S.lbIdx]) p.set('item', S.media[S.lbIdx].id);
+    if (_isEmbed) p.set('embed', '1'); // M9: preserve embed param in URL history
     const url = location.pathname + '?' + p.toString();
     const shouldPush = _nextSyncPush && !_skipNextSync;
     _nextSyncPush = false;
@@ -684,6 +698,7 @@
     D.landing.classList.add('hidden');
     D.gallery.classList.remove('hidden');
     D.copyLinkBtn.classList.remove('hidden'); // M6: show copy link btn when gallery opens
+    if (!_isEmbed) D.embedBtn.classList.remove('hidden'); // M9: show embed btn (not in embed mode itself)
     D.search.value = ''; S.search = ''; S.filter = 'all';
     document.querySelectorAll('.ftab').forEach(t => t.classList.toggle('active', t.dataset.filter==='all'));
     D.loadWrap.classList.add('hidden'); D.stats.innerHTML = '';
@@ -1152,6 +1167,7 @@
     D.lb.classList.remove('hidden');
     document.body.style.overflow = 'hidden';
     syncUrl(); // M6: add ?item= param to URL
+    postParent('lightbox:open', { fileId: S.media[idx]?.id, fileName: S.media[idx]?.name }); // M9
   }
 
   function closeLb() {
@@ -1160,6 +1176,7 @@
     D.lbBody.innerHTML = '';
     S.lbIdx = -1;
     syncUrl(); // M6: remove ?item= param from URL
+    postParent('lightbox:close', {}); // M9
   }
 
   function paintLb() {
@@ -1511,6 +1528,53 @@
   });
 
   /* ─────────────────────────────────────────
+     EMBED WIDGET (M9)
+  ───────────────────────────────────────── */
+  function buildEmbedSrc() {
+    // Build the iframe src: current page URL with ?embed=1 + current folder/filter/sort state
+    const p = new URLSearchParams();
+    const folderId = S.stack.at(-1)?.id;
+    if (folderId) p.set('folder', folderId);
+    if (S.filter && S.filter !== 'all') p.set('filter', S.filter);
+    if (S.sort   && S.sort   !== 'name-asc') p.set('sort', S.sort);
+    if (S.search) p.set('q', S.search);
+    p.set('embed', '1');
+    return location.origin + location.pathname + '?' + p.toString();
+  }
+
+  function generateEmbedSnippet() {
+    const src    = buildEmbedSrc();
+    const width  = (D.embedWidth.value.trim()  || '100%');
+    const height = (D.embedHeight.value.trim() || '600px');
+    return `<iframe\n  src="${src}"\n  width="${width}"\n  height="${height}"\n  frameborder="0"\n  allowfullscreen\n  loading="lazy"\n  style="border:0;border-radius:8px;display:block"\n></iframe>`;
+  }
+
+  function refreshEmbedCode() {
+    D.embedCode.textContent = generateEmbedSnippet();
+  }
+
+  function openEmbedModal() {
+    refreshEmbedCode();
+    D.embedModal.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeEmbedModal() {
+    D.embedModal.classList.add('hidden');
+    document.body.style.overflow = '';
+  }
+
+  /* ─────────────────────────────────────────
+     POSTMESSAGE (M9 — optional)
+  ───────────────────────────────────────── */
+  function postParent(type, data) {
+    if (!_isEmbed) return;
+    try {
+      window.parent.postMessage({ source: 'darkroom', type, ...data }, '*');
+    } catch { /* cross-origin parent may block */ }
+  }
+
+  /* ─────────────────────────────────────────
      EVENTS
   ───────────────────────────────────────── */
   /* ─────────────────────────────────────────
@@ -1690,6 +1754,20 @@
     else            enableAiTagging();
   });
 
+  /* ─── Embed widget (M9) ─────────────────── */
+  D.embedBtn.addEventListener('click', openEmbedModal);
+  D.embedClose.addEventListener('click', closeEmbedModal);
+  D.embedModal.addEventListener('click', e => { if (e.target === D.embedModal) closeEmbedModal(); });
+  D.embedWidth.addEventListener('input',  refreshEmbedCode);
+  D.embedHeight.addEventListener('input', refreshEmbedCode);
+  D.embedCopy.addEventListener('click', () => {
+    const snippet = generateEmbedSnippet();
+    navigator.clipboard.writeText(snippet).then(
+      () => { showToast('Embed code copied!'); closeEmbedModal(); },
+      () => showToast('Could not copy — try selecting the code manually'),
+    );
+  });
+
   /* ─── Copy gallery link (M6) ───────────── */
   D.copyLinkBtn.addEventListener('click', () => {
     navigator.clipboard.writeText(location.href).then(
@@ -1728,6 +1806,11 @@
   if (localStorage.getItem(LS_AI_ENABLED)) {
     _aiEnabled = true;
     D.aiBtn.classList.add('active');
+  }
+
+  /* ─── Embed mode boot (M9) ──────────────── */
+  if (_isEmbed) {
+    document.body.classList.add('embed-mode');
   }
 
 })();
