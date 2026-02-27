@@ -59,6 +59,17 @@
     </button>
   </div>
 
+  <!-- New Event button (M13) — visible when host is signed in -->
+  <button class="new-event-hdr-btn hidden" id="new-event-btn-hdr" aria-label="Create new event" title="Create a new photo collection event">
+    <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24"
+         fill="none" stroke="currentColor" stroke-width="2.5"
+         stroke-linecap="round" stroke-linejoin="round">
+      <line x1="12" y1="5" x2="12" y2="19"/>
+      <line x1="5" y1="12" x2="19" y2="12"/>
+    </svg>
+    Event
+  </button>
+
   <!-- Protect gallery button (M12) -->
   <button class="protect-btn hidden" id="protect-btn" aria-label="Password-protect this gallery" title="Password-protect this gallery">
     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
@@ -147,6 +158,22 @@
       <span class="social-count">2,400+ galleries created</span>
     </div>
     <button class="demo-link" id="demo-link">Try with a demo gallery →</button>
+
+    <!-- Event Dashboard (M13) — visible after sign-in when events exist -->
+    <div class="event-dashboard hidden" id="event-dashboard">
+      <div class="event-dashboard-hdr">
+        <span class="event-dashboard-title">Your Events</span>
+        <button class="event-new-btn" id="new-event-btn">
+          <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24"
+               fill="none" stroke="currentColor" stroke-width="2.5"
+               stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          New Event
+        </button>
+      </div>
+      <div class="event-list" id="event-list"></div>
+    </div>
   </div>
 
   <!-- GALLERY -->
@@ -252,8 +279,51 @@
         <option value="timeline">Timeline</option>
       </select>
 
+      <!-- M14: Manual refresh + poll interval (shown in event mode) -->
+      <button class="refresh-btn hidden" id="refresh-btn" aria-label="Refresh photos" title="Check for new photos">
+        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24"
+             fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="23 4 23 10 17 10"/>
+          <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+        </svg>
+      </button>
+      <select class="poll-interval-sel hidden" id="poll-interval-sel" aria-label="Auto-refresh interval" title="Auto-refresh interval">
+        <option value="15000">Every 15s</option>
+        <option value="30000" selected>Every 30s</option>
+        <option value="60000">Every 60s</option>
+      </select>
+
       <span class="file-count" id="file-count"></span>
       <span class="ai-status hidden" id="ai-status"></span>
+    </div>
+
+    <!-- M15: Contributors panel (shown in event mode) -->
+    <div class="contributors-panel hidden" id="contributors-panel"></div>
+
+    <!-- M15: Curation bar (shown in host event mode) -->
+    <div class="curation-bar hidden" id="curation-bar">
+      <button class="curation-btn" id="curation-hide-btn" title="Click photos to hide them from guests">
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24"
+             fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+          <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+          <line x1="1" y1="1" x2="23" y2="23"/>
+        </svg>
+        Hide
+      </button>
+      <button class="curation-btn" id="curation-feature-btn" title="Click photos to feature them at the top">
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24"
+             fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+        </svg>
+        Feature
+      </button>
+      <div class="curation-sep"></div>
+      <button class="curation-share-btn" id="curation-share-btn">Share Gallery</button>
+      <button class="curation-thanks-btn" id="curation-thanks-btn">Thank You Page</button>
     </div>
 
     <div class="grid" id="grid" role="list"></div>
@@ -261,6 +331,90 @@
     <div class="load-more-wrap hidden" id="load-more-wrap">
       <button class="load-more-btn" id="load-more-btn">Load more files</button>
     </div>
+  </div>
+
+  <!-- UPLOAD PAGE (M13) — shown when ?event=<id>&upload=1 -->
+  <div class="upload-page hidden" id="upload-page">
+    <div class="upload-header" id="upload-header" data-style="warm-gold">
+      <div class="upload-logo">Darkroom</div>
+      <div class="upload-event-name" id="upload-event-name"></div>
+      <div class="upload-event-date" id="upload-event-date"></div>
+    </div>
+    <div class="upload-body">
+      <div class="upload-count-row">
+        <span class="upload-count" id="upload-count">Loading…</span>
+      </div>
+      <div class="upload-guest-field">
+        <label class="upload-label" for="guest-name">Your Name</label>
+        <input class="upload-input" id="guest-name" type="text"
+               placeholder="Enter your name…" autocomplete="name" maxlength="60" spellcheck="false">
+      </div>
+      <!-- Guest sign-in prompt (shown before auth) -->
+      <div class="upload-auth-prompt" id="upload-auth-prompt">
+        <p class="upload-auth-desc">
+          Sign in with Google to upload your photos. We only access files you upload —
+          nothing else in your Drive.
+        </p>
+        <button class="upload-signin-btn" id="upload-signin-btn">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 48 48">
+            <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+            <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+            <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+            <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+          </svg>
+          Continue with Google
+        </button>
+      </div>
+      <!-- Upload UI (shown after guest auth) -->
+      <div class="upload-ui hidden" id="upload-ui">
+        <input type="file" id="file-picker" multiple accept="image/*,video/*" style="display:none">
+        <button class="add-photos-btn" id="add-photos-btn">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
+               fill="none" stroke="currentColor" stroke-width="1.5"
+               stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2"/>
+            <circle cx="8.5" cy="8.5" r="1.5"/>
+            <polyline points="21 15 16 10 5 21"/>
+            <line x1="16" y1="5" x2="21" y2="5"/>
+            <line x1="18.5" y1="2.5" x2="18.5" y2="7.5"/>
+          </svg>
+          Add Photos &amp; Videos
+        </button>
+        <div class="upload-list" id="upload-list"></div>
+        <div class="upload-done-msg hidden" id="upload-done-msg">
+          <div class="upload-done-icon">🎉</div>
+          <div class="upload-done-text">Photos uploaded! Thank you.</div>
+          <button class="upload-more-btn" id="upload-more-btn">Upload More</button>
+        </div>
+      </div>
+    </div>
+    <div class="upload-footer">
+      Powered by <strong>Darkroom</strong>
+    </div>
+  </div>
+
+  <!-- STATS DISPLAY (M14) — shown when ?event=<id>&display=stats -->
+  <div class="stats-display hidden" id="stats-display">
+    <div class="stats-display-event-name" id="stats-display-event-name"></div>
+    <div class="stats-display-counter" id="stats-display-counter">0</div>
+    <div class="stats-display-label">photos collected</div>
+    <div class="stats-display-qr" id="stats-display-qr"></div>
+    <div class="stats-display-hint">Scan to add your photos</div>
+  </div>
+
+  <!-- THANKS PAGE (M15) — shown when ?event=<id>&view=thanks -->
+  <div class="thanks-page hidden" id="thanks-page">
+    <div class="thanks-header">
+      <div class="thanks-event-name" id="thanks-event-name"></div>
+      <div class="thanks-event-date" id="thanks-event-date"></div>
+    </div>
+    <div class="thanks-stats" id="thanks-stats"></div>
+    <div class="thanks-grid" id="thanks-grid"></div>
+    <div class="thanks-actions">
+      <a class="thanks-gallery-btn" id="thanks-gallery-btn" href="#">View Full Gallery</a>
+      <button class="thanks-download-btn" id="thanks-download-btn">Download All</button>
+    </div>
+    <div class="powered-by">Powered by <strong>Darkroom</strong></div>
   </div>
 
 </main>
@@ -414,6 +568,10 @@
       <div class="ss-progress" id="ss-progress"></div>
     </div>
     <div class="ss-controls">
+      <!-- M14: Live toggle for slideshow -->
+      <button class="ss-ctrl-btn ss-live-btn hidden" id="ss-live-btn" aria-label="Toggle live mode" title="LIVE: auto-add new uploads to slideshow">
+        <span class="live-dot"></span>LIVE
+      </button>
       <button class="ss-ctrl-btn" id="ss-play-btn" aria-label="Pause">
         <svg id="ss-play-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
              fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -555,6 +713,109 @@
         </button>
       </div>
       <p class="protect-note">Share this link. Recipients will need the password you chose above.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ===================================
+     EVENT CREATE MODAL (M13)
+=================================== -->
+<div class="event-create-modal hidden" id="event-create-modal" role="dialog" aria-modal="true" aria-label="Create New Event">
+  <div class="event-create-panel">
+    <div class="event-create-head">
+      <div class="event-create-title">Create Event</div>
+      <button class="event-create-close" id="event-create-close" aria-label="Close">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+             fill="none" stroke="currentColor" stroke-width="2.2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 6 6 18M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+    <p class="event-create-desc">
+      Set up a photo collection event. Guests scan a QR code to upload photos directly to your Google Drive.
+    </p>
+    <div class="event-create-field">
+      <label class="event-create-label" for="event-name-input">Event Name</label>
+      <input class="event-create-input" id="event-name-input" type="text"
+             placeholder="e.g. Sarah &amp; Tom's Wedding" autocomplete="off" maxlength="80" spellcheck="false">
+    </div>
+    <div class="event-create-field">
+      <label class="event-create-label" for="event-date-input">Event Date</label>
+      <input class="event-create-input" id="event-date-input" type="date">
+    </div>
+    <div class="event-create-field">
+      <label class="event-create-label">Cover Style</label>
+      <div class="cover-style-picker" id="cover-style-picker">
+        <button class="cover-swatch active" data-style="warm-gold" title="Warm Gold" aria-label="Warm Gold"></button>
+        <button class="cover-swatch" data-style="cool-blue" title="Cool Blue" aria-label="Cool Blue"></button>
+        <button class="cover-swatch" data-style="forest-green" title="Forest Green" aria-label="Forest Green"></button>
+        <button class="cover-swatch" data-style="sunset-pink" title="Sunset Pink" aria-label="Sunset Pink"></button>
+      </div>
+    </div>
+    <button class="event-create-btn" id="event-create-btn">
+      <span id="event-create-btn-label">Create Event</span>
+      <span class="event-create-spinner hidden" id="event-create-spinner"></span>
+    </button>
+    <p class="event-create-note" id="event-create-note"></p>
+  </div>
+</div>
+
+<!-- ===================================
+     QR SHARE MODAL (M13)
+=================================== -->
+<div class="qr-modal hidden" id="qr-share-modal" role="dialog" aria-modal="true" aria-label="Share Event">
+  <div class="qr-panel">
+    <div class="qr-head">
+      <div class="qr-title" id="qr-event-name">Share Event</div>
+      <button class="qr-close" id="qr-close" aria-label="Close">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+             fill="none" stroke="currentColor" stroke-width="2.2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 6 6 18M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+    <!-- M15: Tab switcher (upload link / gallery link) -->
+    <div class="qr-tabs" id="qr-tabs">
+      <button class="qr-tab active" data-tab="upload" id="qr-tab-upload">Upload Link</button>
+      <button class="qr-tab" data-tab="gallery" id="qr-tab-gallery">Gallery Link</button>
+    </div>
+    <div class="qr-body">
+      <div class="qr-canvas-wrap" id="qr-canvas-wrap"></div>
+      <p class="qr-hint" id="qr-hint">Guests scan this code to upload photos</p>
+    </div>
+    <div class="qr-url-row">
+      <input class="qr-url-input" id="qr-url-input" type="text" readonly>
+      <button class="qr-copy-btn" id="qr-copy-btn">Copy</button>
+    </div>
+    <div class="qr-actions">
+      <button class="qr-action-btn" id="qr-download-btn">
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24"
+             fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        Download QR
+      </button>
+      <button class="qr-action-btn" id="qr-whatsapp-btn">
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24"
+             fill="currentColor" stroke="none">
+          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347"/>
+        </svg>
+        WhatsApp
+      </button>
+      <button class="qr-action-btn" id="qr-email-btn">
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24"
+             fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+          <polyline points="22,6 12,13 2,6"/>
+        </svg>
+        Email
+      </button>
     </div>
   </div>
 </div>

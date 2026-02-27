@@ -17,6 +17,14 @@
   const AI_SHOW_TAGS  = 3;     // max tags shown per card
   const LS_VIEW_MODE  = 'darkroom_view_mode';
   const DEMO_FOLDER_ID = ''; // set to a public Drive folder ID for the demo button (M11)
+  // M13 — Events & Upload
+  const LS_EVENTS        = 'darkroom_events';
+  const LS_CURATION      = 'darkroom_curation';
+  const QR_CDN           = 'https://cdn.jsdelivr.net/npm/qrcode-generator@1/qrcode.min.js';
+  const UPLOAD_MAX_MB    = 50;
+  const COVER_STYLES     = ['warm-gold', 'cool-blue', 'forest-green', 'sunset-pink'];
+  const DRIVE_FILE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+  const GIS_WRITE_SCOPE  = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email';
 
   /* ─────────────────────────────────────────
      EMBED MODE STATE (M9)
@@ -36,9 +44,25 @@
   /* ─────────────────────────────────────────
      OAUTH STATE (M7)
   ───────────────────────────────────────── */
-  let _oauthToken  = null;  // current access token
+  let _oauthToken  = null;  // current access token (drive.readonly)
   let _oauthExpiry = 0;     // expiry timestamp (ms)
   let _tokenClient = null;  // GIS token client instance
+
+  /* ─────────────────────────────────────────
+     EVENT OAUTH STATE (M13)
+  ───────────────────────────────────────── */
+  let _hostWriteToken  = null;  // drive.file token for host event ops
+  let _hostWriteExpiry = 0;
+  let _hostWriteClient = null;  // separate GIS token client (drive.file scope)
+  let _guestToken      = null;  // drive.file token for guest uploads
+  let _guestExpiry     = 0;
+  let _guestClient     = null;
+  // UI state
+  let _selectedCoverStyle = 'warm-gold';
+  let _currentQREvent     = null;   // event shown in QR modal
+  let _currentQRTab       = 'upload'; // 'upload' | 'gallery'
+  let _statsPollingTimer  = null;
+  let _qrLibLoaded        = false;
 
   /* ─────────────────────────────────────────
      AI TAGGING STATE (M8)
@@ -155,6 +179,21 @@
     viewMode: 'grid', // 'grid' | 'timeline'
     // Password lock (M12)
     lockHash: '',
+    // Events (M13)
+    events:        [],
+    currentEvent:  null,  // { id, name, date, folderId, coverStyle, createdAt, permissionId }
+    eventMode:     false, // true when browsing in event gallery context
+    uploadMode:    false, // true when ?event+upload=1 shown
+    // Live polling (M14)
+    pollTimer:     null,
+    pollInterval:  30000,
+    slideshowLive: false,
+    // Curation (M15)
+    hiddenFiles:       new Set(),
+    featuredFiles:     [],
+    hostMode:          false,
+    guestView:         false,
+    contributorFilter: '',
   };
 
   /* ─────────────────────────────────────────
@@ -253,6 +292,71 @@
     // AI tagging (M8)
     aiBtn:       el('ai-btn'),
     aiStatus:    el('ai-status'),
+    // M13 — event dashboard
+    newEventBtnHdr:     el('new-event-btn-hdr'),
+    eventDashboard:     el('event-dashboard'),
+    eventList:          el('event-list'),
+    newEventBtn:        el('new-event-btn'),
+    // M13 — event create modal
+    eventCreateModal:   el('event-create-modal'),
+    eventCreateClose:   el('event-create-close'),
+    eventNameInput:     el('event-name-input'),
+    eventDateInput:     el('event-date-input'),
+    coverStylePicker:   el('cover-style-picker'),
+    eventCreateBtn:     el('event-create-btn'),
+    eventCreateLabel:   el('event-create-btn-label'),
+    eventCreateSpinner: el('event-create-spinner'),
+    eventCreateNote:    el('event-create-note'),
+    // M13 — QR modal
+    qrShareModal:   el('qr-share-modal'),
+    qrEventName:    el('qr-event-name'),
+    qrClose:        el('qr-close'),
+    qrTabUpload:    el('qr-tab-upload'),
+    qrTabGallery:   el('qr-tab-gallery'),
+    qrCanvasWrap:   el('qr-canvas-wrap'),
+    qrHint:         el('qr-hint'),
+    qrUrlInput:     el('qr-url-input'),
+    qrCopyBtn:      el('qr-copy-btn'),
+    qrDownloadBtn:  el('qr-download-btn'),
+    qrWhatsappBtn:  el('qr-whatsapp-btn'),
+    qrEmailBtn:     el('qr-email-btn'),
+    // M13 — upload page
+    uploadPage:       el('upload-page'),
+    uploadHeader:     el('upload-header'),
+    uploadEventName:  el('upload-event-name'),
+    uploadEventDate:  el('upload-event-date'),
+    uploadCount:      el('upload-count'),
+    guestName:        el('guest-name'),
+    uploadAuthPrompt: el('upload-auth-prompt'),
+    uploadSigninBtn:  el('upload-signin-btn'),
+    uploadUi:         el('upload-ui'),
+    filePicker:       el('file-picker'),
+    addPhotosBtn:     el('add-photos-btn'),
+    uploadList:       el('upload-list'),
+    uploadDoneMsg:    el('upload-done-msg'),
+    uploadMoreBtn:    el('upload-more-btn'),
+    // M14 — polling controls
+    refreshBtn:       el('refresh-btn'),
+    pollIntervalSel:  el('poll-interval-sel'),
+    ssLiveBtn:        el('ss-live-btn'),
+    statsDisplay:     el('stats-display'),
+    statsDisplayName: el('stats-display-event-name'),
+    statsCounter:     el('stats-display-counter'),
+    statsDisplayQr:   el('stats-display-qr'),
+    // M15 — curation / contributors / thanks
+    contributorsPanel: el('contributors-panel'),
+    curationBar:       el('curation-bar'),
+    curationHideBtn:   el('curation-hide-btn'),
+    curationFeatureBtn:el('curation-feature-btn'),
+    curationShareBtn:  el('curation-share-btn'),
+    curationThanksBtn: el('curation-thanks-btn'),
+    thanksPage:        el('thanks-page'),
+    thanksEventName:   el('thanks-event-name'),
+    thanksEventDate:   el('thanks-event-date'),
+    thanksStats:       el('thanks-stats'),
+    thanksGrid:        el('thanks-grid'),
+    thanksGalleryBtn:  el('thanks-gallery-btn'),
+    thanksDownloadBtn: el('thanks-download-btn'),
     // slideshow
     ssBtn:       el('slideshow-btn'),
     ssOverlay:   el('slideshow'),
@@ -349,10 +453,13 @@
      URL SYNC (M6)
   ───────────────────────────────────────── */
   function syncUrl() {
+    if (S.uploadMode || S.guestView) return; // upload/guest pages manage their own URL
     const folderId = S.stack.at(-1)?.id;
     if (!folderId) return; // no gallery open — don't touch the URL
     const p = new URLSearchParams();
-    p.set('folder', folderId);
+    // M13: event mode uses ?event= instead of ?folder=
+    if (S.eventMode && S.currentEvent) p.set('event', S.currentEvent.folderId);
+    else p.set('folder', folderId);
     if (S.filter && S.filter !== 'all')  p.set('filter', S.filter);
     if (S.sort   && S.sort   !== 'name-asc') p.set('sort', S.sort);
     if (S.search)                         p.set('q',      S.search);
@@ -628,6 +735,12 @@
       const display = userInfo.name || userInfo.email || '';
       D.userAvatar.textContent = display ? display[0].toUpperCase() : '?';
       D.userName.textContent   = (userInfo.name || userInfo.email || 'User').split(' ')[0];
+      // M13: show new-event button and load event dashboard
+      if (D.newEventBtnHdr) D.newEventBtnHdr.classList.remove('hidden');
+      renderEventDashboard();
+    } else {
+      if (D.newEventBtnHdr) D.newEventBtnHdr.classList.add('hidden');
+      if (D.eventDashboard) D.eventDashboard.classList.add('hidden');
     }
   }
 
@@ -693,7 +806,7 @@
   async function apiFetch(folderId, pageToken) {
     const p = new URLSearchParams({
       q: `'${folderId}' in parents and trashed=false`,
-      fields: 'files(id,name,mimeType,size,modifiedTime,thumbnailLink,webViewLink,webContentLink),nextPageToken',
+      fields: 'files(id,name,mimeType,size,modifiedTime,thumbnailLink,webViewLink,webContentLink,description),nextPageToken',
       pageSize: PG_SIZE,
       orderBy: 'folder,name',
     });
@@ -849,8 +962,12 @@
     }
 
     let list = [...S.files];
+    // M15: apply hidden files filter (guest view + host curates)
+    if (S.guestView) list = list.filter(f => !S.hiddenFiles.has(f.id));
     if (S.filter === 'favorites')   list = list.filter(f => isFav(f.id));
     else if (S.filter !== 'all')    list = list.filter(f => fileType(f.mimeType) === S.filter);
+    // M15: contributor filter
+    if (S.contributorFilter) list = list.filter(f => f.description === S.contributorFilter);
     if (S.search) {
       const q = S.search.toLowerCase();
       list = list.filter(f => {
@@ -895,6 +1012,8 @@
       if (_aiModel && !_aiRunning) startAiTagging();
       else if (!_aiLoading) enableAiTagging();
     }
+    // M15: update contributors panel when in event mode
+    if (S.eventMode) renderContributorsPanel(S.files);
   }
 
   /* ─────────────────────────────────────────
@@ -953,6 +1072,9 @@
     const faved    = isFav(file.id);
     const selected = S.selectMode && S.selected.has(file.id);
     const hidden   = gkey && S.collapsedGroups.has(gkey);
+    // M15: curation states
+    const isHidden   = S.hiddenFiles.has(file.id);
+    const isFeatured = S.featuredFiles.includes(file.id);
 
     let thumbHtml;
     if (t === 'folder') {
@@ -967,7 +1089,7 @@
     }
 
     return `
-      <div class="card ${t==='folder'?'card-folder':''} ${selected?'selected':''} ${hidden?'group-hidden':''}"
+      <div class="card ${t==='folder'?'card-folder':''} ${selected?'selected':''} ${hidden?'group-hidden':''} ${isHidden?'card-hidden':''} ${isFeatured?'card-featured':''}"
            role="listitem" tabindex="0"
            data-id="${esc(file.id)}" data-type="${t}"
            data-midx="${midx}" data-fname="${t==='folder'?esc(file.name):''}"
@@ -997,6 +1119,8 @@
               <circle cx="12" cy="12" r="10" opacity=".25"/>
               <polygon points="10 8 16 12 10 16 10 8"/>
             </svg></div>` : ''}
+          ${isFeatured && t !== 'folder' ? `<div class="featured-badge">★</div>` : ''}
+          ${isHidden && t !== 'folder' ? `<div class="hidden-overlay"><div class="hidden-overlay-label">Hidden</div></div>` : ''}
         </div>
         <div class="card-body">
           <div class="card-name" title="${esc(file.name)}">${esc(file.name)}</div>
@@ -1384,6 +1508,8 @@
     paintSlide(S.slideshowIdx);
     startTimer();
     updatePlayIcon();
+    // M14: show live button in event mode
+    if (D.ssLiveBtn) D.ssLiveBtn.classList.toggle('hidden', !S.eventMode);
   }
 
   function closeSlideshow() {
@@ -1898,6 +2024,1002 @@
   }
 
   /* ─────────────────────────────────────────
+     M13 — EVENT CRUD (localStorage)
+  ───────────────────────────────────────── */
+  function loadEvents() {
+    try {
+      const raw = localStorage.getItem(LS_EVENTS);
+      S.events = raw ? JSON.parse(raw) : [];
+    } catch { S.events = []; }
+    return S.events;
+  }
+
+  function saveEvents() {
+    try { localStorage.setItem(LS_EVENTS, JSON.stringify(S.events)); } catch {}
+  }
+
+  function findEventByFolderId(folderId) {
+    return S.events.find(e => e.folderId === folderId) || null;
+  }
+
+  function deleteEventById(eventId) {
+    S.events = S.events.filter(e => e.id !== eventId);
+    saveEvents();
+    renderEventDashboard();
+  }
+
+  /* ─────────────────────────────────────────
+     M13 — HOST WRITE OAUTH (drive.file)
+  ───────────────────────────────────────── */
+  function isHostWriteSignedIn() {
+    return !!_hostWriteToken && Date.now() < _hostWriteExpiry;
+  }
+
+  function hostWriteHeaders() {
+    return isHostWriteSignedIn() ? { Authorization: `Bearer ${_hostWriteToken}` } : {};
+  }
+
+  function initHostWriteClient(clientId, callback) {
+    if (!clientId || !window.google?.accounts?.oauth2) return false;
+    try {
+      _hostWriteClient = window.google.accounts.oauth2.initTokenClient({
+        client_id: clientId,
+        scope: GIS_WRITE_SCOPE,
+        callback,
+      });
+      return true;
+    } catch { return false; }
+  }
+
+  function requestHostWriteToken() {
+    return new Promise(async (resolve, reject) => {
+      const clientId = getClientId();
+      if (!clientId) { reject(new Error('No Client ID — add one in Settings')); return; }
+      try { await loadGISScript(); } catch { reject(new Error('Could not load Google auth')); return; }
+      if (!initHostWriteClient(clientId, resp => {
+        if (resp.error) { reject(new Error('Auth failed: ' + resp.error)); return; }
+        _hostWriteToken  = resp.access_token;
+        _hostWriteExpiry = Date.now() + (resp.expires_in * 1000);
+        resolve(_hostWriteToken);
+      })) { reject(new Error('OAuth init failed — check Client ID')); return; }
+      _hostWriteClient.requestAccessToken({ prompt: '' });
+    });
+  }
+
+  /* ─────────────────────────────────────────
+     M13 — DRIVE WRITE OPERATIONS
+  ───────────────────────────────────────── */
+  async function createDriveFolder(name) {
+    const r = await fetch('https://www.googleapis.com/drive/v3/files', {
+      method: 'POST',
+      headers: { ...hostWriteHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, mimeType: 'application/vnd.google-apps.folder' }),
+    });
+    if (!r.ok) {
+      const e = await r.json().catch(()=>({}));
+      throw new Error(e?.error?.message || `HTTP ${r.status}`);
+    }
+    return (await r.json()).id; // returns folder ID
+  }
+
+  async function setFolderPublicEditable(folderId) {
+    const r = await fetch(`https://www.googleapis.com/drive/v3/files/${folderId}/permissions`, {
+      method: 'POST',
+      headers: { ...hostWriteHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role: 'writer', type: 'anyone' }),
+    });
+    if (!r.ok) {
+      const e = await r.json().catch(()=>({}));
+      throw new Error(e?.error?.message || `HTTP ${r.status}`);
+    }
+    return (await r.json()).id; // returns permission ID
+  }
+
+  async function revokeFolderPermission(folderId, permissionId) {
+    const r = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${folderId}/permissions/${permissionId}`,
+      { method: 'DELETE', headers: hostWriteHeaders() }
+    );
+    return r.ok;
+  }
+
+  async function getDrivePhotoCount(folderId) {
+    // Use host write token if available, else fall back to M7 token or API key
+    const headers = isHostWriteSignedIn() ? hostWriteHeaders()
+                  : isSignedIn()          ? authHeaders()
+                  : {};
+    const p = new URLSearchParams({
+      q: `'${folderId}' in parents and trashed=false and mimeType!='application/vnd.google-apps.folder'`,
+      fields: 'files(id)',
+      pageSize: 100,
+    });
+    if (!isHostWriteSignedIn() && !isSignedIn() && getApiKey()) p.set('key', getApiKey());
+    try {
+      const r = await fetch(`${API_BASE}?${p}`, { headers });
+      if (!r.ok) return null;
+      const { files, nextPageToken } = await r.json();
+      return nextPageToken ? `${files.length}+` : String(files.length);
+    } catch { return null; }
+  }
+
+  /* ─────────────────────────────────────────
+     M13 — CREATE EVENT FLOW
+  ───────────────────────────────────────── */
+  function openEventCreateModal() {
+    D.eventCreateModal.classList.remove('hidden');
+    D.eventCreateNote.textContent = '';
+    D.eventCreateBtn.disabled = false;
+    D.eventCreateLabel.textContent = 'Create Event';
+    D.eventCreateSpinner.classList.add('hidden');
+    // Default date to today
+    if (!D.eventDateInput.value) {
+      D.eventDateInput.value = new Date().toISOString().slice(0, 10);
+    }
+    D.eventNameInput.focus();
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeEventCreateModal() {
+    D.eventCreateModal.classList.add('hidden');
+    document.body.style.overflow = '';
+  }
+
+  async function submitCreateEvent() {
+    const name = D.eventNameInput.value.trim();
+    if (!name) { D.eventNameInput.focus(); return; }
+
+    D.eventCreateBtn.disabled = true;
+    D.eventCreateLabel.textContent = 'Signing in…';
+    D.eventCreateSpinner.classList.remove('hidden');
+    D.eventCreateNote.textContent = '';
+
+    try {
+      // Ensure we have a write token
+      if (!isHostWriteSignedIn()) {
+        D.eventCreateNote.textContent = 'A Google sign-in popup will appear…';
+        await requestHostWriteToken();
+      }
+      D.eventCreateLabel.textContent = 'Creating folder…';
+
+      const eventName = name;
+      const eventDate = D.eventDateInput.value || new Date().toISOString().slice(0, 10);
+      const coverStyle = _selectedCoverStyle;
+
+      // Create folder in Drive
+      const folderId = await createDriveFolder(eventName);
+      D.eventCreateLabel.textContent = 'Setting permissions…';
+
+      // Make public-editable
+      let permissionId = null;
+      try {
+        permissionId = await setFolderPublicEditable(folderId);
+      } catch (e) {
+        // Permission might fail with drive.file scope — event still created, just not public
+        console.warn('Could not set public permission:', e.message);
+      }
+
+      // Save event
+      const event = {
+        id:           crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36),
+        name:         eventName,
+        date:         eventDate,
+        folderId,
+        coverStyle,
+        permissionId,
+        createdAt:    new Date().toISOString(),
+        uploadsOpen:  !!permissionId,
+      };
+      loadEvents();
+      S.events.unshift(event);
+      saveEvents();
+
+      closeEventCreateModal();
+      D.eventNameInput.value = '';
+      D.eventDateInput.value = '';
+
+      renderEventDashboard();
+      openQRModal(event);
+
+    } catch (err) {
+      D.eventCreateNote.textContent = err.message;
+      D.eventCreateBtn.disabled = false;
+      D.eventCreateLabel.textContent = 'Create Event';
+      D.eventCreateSpinner.classList.add('hidden');
+    }
+  }
+
+  async function closeEventUploads(event) {
+    if (!event.permissionId) { showToast('Uploads already closed'); return; }
+    if (!isHostWriteSignedIn()) {
+      try { await requestHostWriteToken(); }
+      catch { showToast('Sign-in required to close uploads'); return; }
+    }
+    const ok = await revokeFolderPermission(event.folderId, event.permissionId);
+    if (ok) {
+      event.permissionId = null;
+      event.uploadsOpen = false;
+      saveEvents();
+      renderEventDashboard();
+      showToast('Upload link deactivated');
+    } else {
+      showToast('Could not close uploads — try again');
+    }
+  }
+
+  /* ─────────────────────────────────────────
+     M13 — EVENT DASHBOARD RENDER
+  ───────────────────────────────────────── */
+  function buildUploadUrl(folderId) {
+    return location.origin + location.pathname + `?event=${encodeURIComponent(folderId)}&upload=1`;
+  }
+
+  function buildGalleryUrl(folderId) {
+    return location.origin + location.pathname + `?event=${encodeURIComponent(folderId)}&view=guest`;
+  }
+
+  function buildThanksUrl(folderId) {
+    return location.origin + location.pathname + `?event=${encodeURIComponent(folderId)}&view=thanks`;
+  }
+
+  async function renderEventDashboard() {
+    loadEvents();
+    // Show event dashboard if signed in (host write or M7 read)
+    const showDash = isSignedIn() || isHostWriteSignedIn();
+    if (!D.eventDashboard) return;
+    D.eventDashboard.classList.toggle('hidden', !showDash || S.events.length === 0);
+    if (!D.eventList) return;
+
+    if (!S.events.length) {
+      D.eventList.innerHTML = '';
+      return;
+    }
+
+    // Render event cards (counts loaded async)
+    D.eventList.innerHTML = S.events.map(e => buildEventCardHtml(e, null)).join('');
+    // Attach actions
+    wireEventCards();
+    // Load photo counts async
+    for (const ev of S.events) {
+      const count = await getDrivePhotoCount(ev.folderId);
+      const countEl = D.eventList.querySelector(`.event-card[data-id="${esc(ev.id)}"] .event-card-count`);
+      if (countEl && count !== null) countEl.textContent = `${count} photos`;
+    }
+  }
+
+  function buildEventCardHtml(event, count) {
+    const dateStr = event.date
+      ? new Date(event.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+      : '—';
+    const countStr = count !== null ? `${count} photos` : 'Loading…';
+    return `
+      <div class="event-card" data-id="${esc(event.id)}" data-style="${esc(event.coverStyle)}">
+        <div class="event-card-accent"></div>
+        <div class="event-card-body">
+          <div class="event-card-name" title="${esc(event.name)}">${esc(event.name)}</div>
+          <div class="event-card-meta">
+            <span>${esc(dateStr)}</span>
+            <span class="event-card-count">${esc(countStr)}</span>
+          </div>
+          <div class="event-card-actions">
+            <button class="event-card-action primary" data-action="gallery">View Gallery</button>
+            <button class="event-card-action" data-action="qr">Share QR</button>
+            <button class="event-card-action" data-action="close-uploads">${event.uploadsOpen ? 'Close Uploads' : 'Uploads Closed'}</button>
+            <button class="event-card-action danger" data-action="delete">Delete</button>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function wireEventCards() {
+    if (!D.eventList) return;
+    D.eventList.querySelectorAll('.event-card').forEach(card => {
+      const eventId = card.dataset.id;
+      const event = S.events.find(e => e.id === eventId);
+      if (!event) return;
+      card.querySelectorAll('.event-card-action').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const action = btn.dataset.action;
+          if (action === 'gallery') {
+            // Browse in event mode
+            S.eventMode = true;
+            S.currentEvent = event;
+            S.hostMode = true;
+            loadEventGallery(event);
+          } else if (action === 'qr') {
+            openQRModal(event);
+          } else if (action === 'close-uploads') {
+            if (event.uploadsOpen) closeEventUploads(event);
+          } else if (action === 'delete') {
+            if (confirm(`Delete event "${event.name}"? This only removes it from Darkroom — the Drive folder is not deleted.`)) {
+              deleteEventById(eventId);
+            }
+          }
+        });
+      });
+    });
+  }
+
+  async function loadEventGallery(event) {
+    D.landing.classList.add('hidden');
+    D.gallery.classList.remove('hidden');
+    D.copyLinkBtn.classList.remove('hidden');
+    if (!_isEmbed) D.embedBtn.classList.remove('hidden');
+    // Show curation bar for host
+    if (S.hostMode && D.curationBar) D.curationBar.classList.remove('hidden');
+    // Show live controls (M14)
+    if (D.refreshBtn) D.refreshBtn.classList.remove('hidden');
+    if (D.pollIntervalSel) D.pollIntervalSel.classList.remove('hidden');
+    S.stack = [];
+    loadCuration(event.folderId);
+    await browse(event.folderId, event.name);
+    startPolling(event.folderId);
+  }
+
+  /* ─────────────────────────────────────────
+     M13 — QR GENERATION
+  ───────────────────────────────────────── */
+  function loadQRScript() {
+    return new Promise((resolve, reject) => {
+      if (_qrLibLoaded && window.qrcode) { resolve(); return; }
+      const s = document.createElement('script');
+      s.src = QR_CDN;
+      s.onload  = () => { _qrLibLoaded = true; resolve(); };
+      s.onerror = () => reject(new Error('Could not load QR library'));
+      document.head.appendChild(s);
+    });
+  }
+
+  function generateQRCanvas(text) {
+    // qrcode-generator API
+    const qr = window.qrcode(0, 'M');
+    qr.addData(text);
+    qr.make();
+    // Render to a canvas
+    const size = 180;
+    const canvas = document.createElement('canvas');
+    const cellSize = Math.floor(size / qr.getModuleCount());
+    const actualSize = cellSize * qr.getModuleCount();
+    canvas.width  = actualSize;
+    canvas.height = actualSize;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, actualSize, actualSize);
+    ctx.fillStyle = '#000000';
+    for (let r = 0; r < qr.getModuleCount(); r++) {
+      for (let c = 0; c < qr.getModuleCount(); c++) {
+        if (qr.isDark(r, c)) {
+          ctx.fillRect(c * cellSize, r * cellSize, cellSize, cellSize);
+        }
+      }
+    }
+    return canvas;
+  }
+
+  async function openQRModal(event) {
+    _currentQREvent = event;
+    _currentQRTab   = 'upload';
+    D.qrEventName.textContent = event.name;
+    D.qrTabUpload.classList.add('active');
+    D.qrTabGallery.classList.remove('active');
+    D.qrShareModal.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+    renderQRTab();
+  }
+
+  async function renderQRTab() {
+    if (!_currentQREvent) return;
+    const isUploadTab = _currentQRTab === 'upload';
+    const url = isUploadTab
+      ? buildUploadUrl(_currentQREvent.folderId)
+      : buildGalleryUrl(_currentQREvent.folderId);
+
+    D.qrHint.textContent = isUploadTab
+      ? 'Guests scan this code to upload photos'
+      : 'Share this link for read-only gallery access';
+    D.qrUrlInput.value = url;
+    D.qrCanvasWrap.innerHTML = '';
+
+    try {
+      await loadQRScript();
+      const canvas = generateQRCanvas(url);
+      D.qrCanvasWrap.appendChild(canvas);
+    } catch {
+      D.qrCanvasWrap.innerHTML = `<div style="font-size:.75rem;color:#888;padding:1rem">QR unavailable</div>`;
+    }
+  }
+
+  function closeQRModal() {
+    D.qrShareModal.classList.add('hidden');
+    document.body.style.overflow = '';
+    _currentQREvent = null;
+  }
+
+  function downloadQRImage() {
+    const canvas = D.qrCanvasWrap.querySelector('canvas');
+    if (!canvas) { showToast('No QR code to download'); return; }
+    const a = document.createElement('a');
+    a.download = `darkroom-qr-${_currentQREvent?.name || 'event'}.png`;
+    a.href = canvas.toDataURL('image/png');
+    a.click();
+  }
+
+  function shareWhatsApp(url, eventName) {
+    const text = encodeURIComponent(`📸 Upload your photos to "${eventName}": ${url}`);
+    window.open(`https://wa.me/?text=${text}`, '_blank', 'noopener,noreferrer');
+  }
+
+  function shareEmail(url, eventName) {
+    const subject = encodeURIComponent(`Upload your photos — ${eventName}`);
+    const body    = encodeURIComponent(`Hi!\n\nPlease upload your photos from ${eventName} using this link:\n\n${url}\n\nThank you!`);
+    window.open(`mailto:?subject=${subject}&body=${body}`, '_self');
+  }
+
+  /* ─────────────────────────────────────────
+     M13 — GUEST UPLOAD OAUTH (drive.file)
+  ───────────────────────────────────────── */
+  function isGuestSignedIn() {
+    return !!_guestToken && Date.now() < _guestExpiry;
+  }
+
+  function initGuestClient(clientId, callback) {
+    if (!clientId || !window.google?.accounts?.oauth2) return false;
+    try {
+      _guestClient = window.google.accounts.oauth2.initTokenClient({
+        client_id: clientId,
+        scope: DRIVE_FILE_SCOPE,
+        callback,
+      });
+      return true;
+    } catch { return false; }
+  }
+
+  async function guestSignIn() {
+    const clientId = getClientId();
+    if (!clientId) {
+      showToast('This event upload is not configured (missing Client ID)');
+      return;
+    }
+    try { await loadGISScript(); } catch {
+      showToast('Could not load Google auth library');
+      return;
+    }
+    if (!initGuestClient(clientId, resp => {
+      if (resp.error) { showToast('Sign-in failed: ' + resp.error); return; }
+      _guestToken  = resp.access_token;
+      _guestExpiry = Date.now() + (resp.expires_in * 1000);
+      // Show upload UI
+      if (D.uploadAuthPrompt) D.uploadAuthPrompt.classList.add('hidden');
+      if (D.uploadUi) D.uploadUi.classList.remove('hidden');
+    })) {
+      showToast('Auth init failed — check Client ID in Settings');
+      return;
+    }
+    _guestClient.requestAccessToken({ prompt: '' });
+  }
+
+  /* ─────────────────────────────────────────
+     M13 — UPLOAD PAGE RENDER
+  ───────────────────────────────────────── */
+  async function renderUploadPage(folderId) {
+    S.uploadMode = true;
+    // Hide everything else
+    document.body.classList.add('upload-mode');
+    if (D.landing) D.landing.classList.add('hidden');
+    if (D.gallery) D.gallery.classList.add('hidden');
+    const header = document.querySelector('header');
+    if (header) header.classList.add('hidden');
+
+    if (!D.uploadPage) return;
+    D.uploadPage.classList.remove('hidden');
+
+    // Try to find event metadata from localStorage
+    loadEvents();
+    let event = findEventByFolderId(folderId);
+
+    if (event) {
+      D.uploadEventName.textContent = event.name;
+      D.uploadHeader.dataset.style  = event.coverStyle || 'warm-gold';
+      if (event.date) {
+        D.uploadEventDate.textContent = new Date(event.date + 'T12:00:00').toLocaleDateString(
+          'en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }
+        );
+      }
+    } else {
+      // Fallback: try to fetch folder name
+      try {
+        const name = await apiFolderName(folderId);
+        D.uploadEventName.textContent = name;
+      } catch { D.uploadEventName.textContent = 'Photo Upload'; }
+    }
+
+    // Load photo count
+    const count = await getDrivePhotoCount(folderId);
+    if (D.uploadCount) {
+      D.uploadCount.textContent = count !== null ? `${count} photos already collected` : '';
+    }
+
+    // Store folder ID for upload
+    D.uploadPage.dataset.folderId = folderId;
+  }
+
+  function startFileUpload() {
+    if (!isGuestSignedIn()) return;
+    const files = Array.from(D.filePicker.files);
+    if (!files.length) return;
+    const folderId = D.uploadPage.dataset.folderId;
+    const guestName = D.guestName.value.trim() || 'Guest';
+    uploadFiles(files, folderId, guestName);
+    // Reset picker so same file can be re-selected
+    D.filePicker.value = '';
+  }
+
+  function uploadFiles(files, folderId, guestName) {
+    // Show done message if already showing, reset it
+    if (D.uploadDoneMsg) D.uploadDoneMsg.classList.add('hidden');
+
+    files.forEach(file => {
+      if (file.size > UPLOAD_MAX_MB * 1024 * 1024) {
+        showToast(`"${file.name}" exceeds ${UPLOAD_MAX_MB} MB limit`);
+        return;
+      }
+      const itemEl = buildUploadItemEl(file);
+      D.uploadList.insertBefore(itemEl, D.uploadList.firstChild);
+      uploadSingleFile(file, folderId, guestName, itemEl);
+    });
+  }
+
+  function buildUploadItemEl(file) {
+    const div = document.createElement('div');
+    div.className = 'upload-item';
+    const isImage = file.type.startsWith('image/');
+    div.innerHTML = `
+      <div class="upload-item-icon">${isImage ? '🖼' : '🎥'}</div>
+      <div class="upload-item-info">
+        <div class="upload-item-name">${esc(file.name)}</div>
+        <div class="upload-item-track"><div class="upload-item-bar"></div></div>
+      </div>
+      <div class="upload-item-status">0%</div>`;
+    return div;
+  }
+
+  function uploadSingleFile(file, folderId, guestName, itemEl) {
+    const bar    = itemEl.querySelector('.upload-item-bar');
+    const status = itemEl.querySelector('.upload-item-status');
+
+    const metadata = {
+      name:        file.name,
+      parents:     [folderId],
+      description: guestName,
+    };
+
+    const formData = new FormData();
+    formData.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+    formData.append('file', file);
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id');
+    xhr.setRequestHeader('Authorization', `Bearer ${_guestToken}`);
+
+    xhr.upload.onprogress = e => {
+      if (e.lengthComputable) {
+        const pct = Math.round((e.loaded / e.total) * 100);
+        bar.style.width = pct + '%';
+        status.textContent = pct + '%';
+      }
+    };
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        itemEl.classList.add('done');
+        bar.style.width = '100%';
+        status.textContent = '✓';
+        checkAllUploadsComplete();
+      } else {
+        itemEl.classList.add('error');
+        status.textContent = '✗';
+        showToast(`Upload failed: ${file.name}`);
+      }
+    };
+
+    xhr.onerror = () => {
+      itemEl.classList.add('error');
+      status.textContent = '✗';
+      showToast(`Upload error: ${file.name}`);
+    };
+
+    xhr.send(formData);
+  }
+
+  function checkAllUploadsComplete() {
+    const items = D.uploadList.querySelectorAll('.upload-item');
+    const allDone = [...items].every(el => el.classList.contains('done') || el.classList.contains('error'));
+    const anyDone = [...items].some(el => el.classList.contains('done'));
+    if (allDone && anyDone && D.uploadDoneMsg) {
+      D.uploadDoneMsg.classList.remove('hidden');
+      // Update count
+      getDrivePhotoCount(D.uploadPage.dataset.folderId).then(count => {
+        if (count && D.uploadCount) D.uploadCount.textContent = `${count} photos collected`;
+      });
+    }
+  }
+
+  /* ─────────────────────────────────────────
+     M14 — LIVE POLLING
+  ───────────────────────────────────────── */
+  function startPolling(folderId) {
+    stopPolling();
+    S.pollTimer = setInterval(async () => {
+      if (document.visibilityState === 'hidden') return;
+      await pollForNewFiles(folderId);
+    }, S.pollInterval);
+
+    document.addEventListener('visibilitychange', _handlePollVisibility);
+  }
+
+  function stopPolling() {
+    if (S.pollTimer) { clearInterval(S.pollTimer); S.pollTimer = null; }
+    document.removeEventListener('visibilitychange', _handlePollVisibility);
+  }
+
+  function _handlePollVisibility() {
+    // Restart poll on tab becoming visible
+    if (document.visibilityState === 'visible' && S.eventMode) {
+      const folderId = S.stack.at(-1)?.id;
+      if (folderId) pollForNewFiles(folderId);
+    }
+  }
+
+  async function pollForNewFiles(folderId) {
+    if (!folderId || S.loading) return;
+    try {
+      const p = new URLSearchParams({
+        q: `'${folderId}' in parents and trashed=false`,
+        fields: 'files(id,name,mimeType,size,modifiedTime,thumbnailLink,webViewLink,webContentLink,description)',
+        pageSize: 100,
+        orderBy: 'folder,name',
+      });
+      const headers = isHostWriteSignedIn() ? hostWriteHeaders()
+                    : isSignedIn()          ? authHeaders()
+                    : {};
+      if (!isHostWriteSignedIn() && !isSignedIn() && getApiKey()) p.set('key', getApiKey());
+      const r = await fetch(`${API_BASE}?${p}`, { headers });
+      if (!r.ok) return;
+      const { files = [] } = await r.json();
+
+      // Find files not in S.files
+      const existingIds = new Set(S.files.map(f => f.id));
+      const newFiles = files.filter(f => !existingIds.has(f.id));
+
+      if (newFiles.length > 0) {
+        S.files.unshift(...newFiles);
+        injectNewCards(newFiles);
+        showNewFilesToast(newFiles.length);
+        // M14: live slideshow — append new media
+        if (S.slideshowLive) {
+          const newMedia = newFiles.filter(f => { const t = fileType(f.mimeType); return t==='image'||t==='video'; });
+          if (newMedia.length) S.media.push(...newMedia);
+        }
+      }
+    } catch { /* polling errors are silent */ }
+  }
+
+  function injectNewCards(newFiles) {
+    // Prepend new cards to the grid with glow animation
+    const newIds = new Set(newFiles.map(f => f.id));
+    const html = newFiles.map((file, i) => buildCardHtml(file, i, '')).join('');
+    const frag = document.createElement('template');
+    frag.innerHTML = html;
+    const newCards = [...frag.content.querySelectorAll('.card')];
+    const firstCard = D.grid.querySelector('.card');
+    newCards.forEach(card => {
+      card.classList.add('card-new');
+      if (firstCard) D.grid.insertBefore(card, firstCard);
+      else D.grid.appendChild(card);
+      // Remove card-new after animation completes
+      card.addEventListener('animationend', () => card.classList.remove('card-new'), { once: true });
+      // Wire events
+      const { id, type, midx, fname } = card.dataset;
+      const activate = () => {
+        if (type === 'folder') browse(id, fname);
+        else if (+midx >= 0) openLb(+midx);
+      };
+      card.addEventListener('click', e => {
+        if (e.target.closest('.fav-btn') || e.target.closest('.card-check')) return;
+        if (S.selectMode && type !== 'folder') { toggleSelect(id); return; }
+        activate();
+      });
+      card.addEventListener('keydown', e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), activate()));
+      const favBtn = card.querySelector('.fav-btn');
+      if (favBtn) favBtn.addEventListener('click', e => { e.stopPropagation(); toggleFav(favBtn.dataset.fid, favBtn); });
+      const checkBtn = card.querySelector('.card-check');
+      if (checkBtn) checkBtn.addEventListener('click', e => { e.stopPropagation(); toggleSelect(checkBtn.dataset.cid); });
+    });
+  }
+
+  function showNewFilesToast(count) {
+    showToast(`${count} new photo${count !== 1 ? 's' : ''} added`);
+  }
+
+  /* ─────────────────────────────────────────
+     M14 — LIVE SLIDESHOW
+  ───────────────────────────────────────── */
+  function toggleSlideshowLive() {
+    S.slideshowLive = !S.slideshowLive;
+    if (D.ssLiveBtn) {
+      D.ssLiveBtn.classList.toggle('live', S.slideshowLive);
+      D.ssLiveBtn.title = S.slideshowLive ? 'LIVE: new uploads auto-added' : 'Enable live mode';
+    }
+    if (S.slideshowLive) showToast('Slideshow LIVE — new uploads will appear');
+    else showToast('Slideshow live mode off');
+  }
+
+  /* ─────────────────────────────────────────
+     M14 — STATS DISPLAY PAGE
+  ───────────────────────────────────────── */
+  async function renderStatsDisplay(folderId) {
+    if (!D.statsDisplay) return;
+    document.body.classList.add('upload-mode');
+    const header = document.querySelector('header');
+    if (header) header.classList.add('hidden');
+    if (D.landing) D.landing.classList.add('hidden');
+    if (D.gallery) D.gallery.classList.add('hidden');
+
+    D.statsDisplay.classList.remove('hidden');
+
+    loadEvents();
+    const event = findEventByFolderId(folderId);
+    if (D.statsDisplayName) D.statsDisplayName.textContent = event?.name || 'Photo Collection';
+
+    // Load QR code
+    const uploadUrl = buildUploadUrl(folderId);
+    if (D.statsDisplayQr) {
+      try {
+        await loadQRScript();
+        const canvas = generateQRCanvas(uploadUrl);
+        canvas.style.maxWidth = '160px';
+        D.statsDisplayQr.innerHTML = '';
+        D.statsDisplayQr.appendChild(canvas);
+      } catch { D.statsDisplayQr.style.display = 'none'; }
+    }
+
+    // Initial count
+    const count = await getDrivePhotoCount(folderId);
+    if (D.statsCounter && count !== null) {
+      D.statsCounter.textContent = count.replace('+', '');
+    }
+
+    // Start polling
+    startStatsPolling(folderId);
+  }
+
+  function startStatsPolling(folderId) {
+    if (_statsPollingTimer) clearInterval(_statsPollingTimer);
+    _statsPollingTimer = setInterval(async () => {
+      if (document.visibilityState === 'hidden') return;
+      const raw = await getDrivePhotoCount(folderId);
+      if (raw === null || !D.statsCounter) return;
+      const newCount = parseInt(raw) || 0;
+      const oldCount = parseInt(D.statsCounter.textContent) || 0;
+      if (newCount > oldCount) animateCounter(oldCount, newCount);
+    }, 15000);
+  }
+
+  function animateCounter(from, to) {
+    if (!D.statsCounter) return;
+    const duration = 800;
+    const start = performance.now();
+    function step(now) {
+      const t = Math.min((now - start) / duration, 1);
+      const ease = t < .5 ? 2*t*t : -1+(4-2*t)*t;
+      D.statsCounter.textContent = Math.round(from + (to - from) * ease);
+      D.statsCounter.classList.toggle('tick', t > 0 && t < 1);
+      if (t < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+
+  /* ─────────────────────────────────────────
+     M15 — CURATION
+  ───────────────────────────────────────── */
+  let _curationMode = null; // null | 'hide' | 'feature'
+
+  function loadCuration(folderId) {
+    try {
+      const raw = localStorage.getItem(LS_CURATION);
+      const all = raw ? JSON.parse(raw) : {};
+      const cur = all[folderId] || { hidden: [], featured: [] };
+      S.hiddenFiles   = new Set(cur.hidden);
+      S.featuredFiles = cur.featured || [];
+    } catch { S.hiddenFiles = new Set(); S.featuredFiles = []; }
+  }
+
+  function saveCuration(folderId) {
+    try {
+      const raw = localStorage.getItem(LS_CURATION);
+      const all = raw ? JSON.parse(raw) : {};
+      all[folderId] = {
+        hidden:   [...S.hiddenFiles],
+        featured: S.featuredFiles,
+      };
+      localStorage.setItem(LS_CURATION, JSON.stringify(all));
+    } catch {}
+  }
+
+  function toggleHideFile(fileId) {
+    const folderId = S.currentEvent?.folderId;
+    if (!folderId) return;
+    if (S.hiddenFiles.has(fileId)) S.hiddenFiles.delete(fileId);
+    else S.hiddenFiles.add(fileId);
+    saveCuration(folderId);
+    // Update card DOM
+    const card = D.grid.querySelector(`.card[data-id="${fileId}"]`);
+    if (card) card.classList.toggle('card-hidden', S.hiddenFiles.has(fileId));
+  }
+
+  function toggleFeatureFile(fileId) {
+    const folderId = S.currentEvent?.folderId;
+    if (!folderId) return;
+    const idx = S.featuredFiles.indexOf(fileId);
+    if (idx >= 0) S.featuredFiles.splice(idx, 1);
+    else S.featuredFiles.push(fileId);
+    saveCuration(folderId);
+    // Update card DOM
+    const card = D.grid.querySelector(`.card[data-id="${fileId}"]`);
+    if (card) {
+      card.classList.toggle('card-featured', idx < 0);
+      let badge = card.querySelector('.featured-badge');
+      if (idx < 0) {
+        if (!badge) {
+          badge = document.createElement('div');
+          badge.className = 'featured-badge';
+          badge.innerHTML = '★';
+          card.querySelector('.card-thumb')?.appendChild(badge);
+        }
+      } else {
+        badge?.remove();
+      }
+    }
+  }
+
+  function enterCurationMode(mode) {
+    _curationMode = _curationMode === mode ? null : mode;
+    if (D.curationHideBtn) D.curationHideBtn.classList.toggle('active', _curationMode === 'hide');
+    if (D.curationFeatureBtn) D.curationFeatureBtn.classList.toggle('active', _curationMode === 'feature');
+    if (_curationMode) showToast(`Click a photo to ${_curationMode} it`);
+    else showToast('Curation mode off');
+  }
+
+  /* ─────────────────────────────────────────
+     M15 — CONTRIBUTORS PANEL
+  ───────────────────────────────────────── */
+  function renderContributorsPanel(files) {
+    if (!D.contributorsPanel) return;
+    // Count per contributor (from file.description)
+    const counts = new Map();
+    files.forEach(f => {
+      if (f.description) {
+        counts.set(f.description, (counts.get(f.description) || 0) + 1);
+      }
+    });
+    if (counts.size === 0) {
+      D.contributorsPanel.classList.add('hidden');
+      return;
+    }
+    D.contributorsPanel.classList.remove('hidden');
+    const allActive = !S.contributorFilter;
+    let html = `<button class="contributor-chip ${allActive ? 'active' : ''}" data-name="">All</button>`;
+    for (const [name, count] of [...counts.entries()].sort((a,b) => b[1]-a[1])) {
+      const active = S.contributorFilter === name;
+      html += `<button class="contributor-chip ${active ? 'active' : ''}" data-name="${esc(name)}">${esc(name)} (${count})</button>`;
+    }
+    D.contributorsPanel.innerHTML = html;
+    D.contributorsPanel.querySelectorAll('.contributor-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        S.contributorFilter = chip.dataset.name;
+        applyFilter();
+      });
+    });
+  }
+
+  /* ─────────────────────────────────────────
+     M15 — GUEST VIEW & THANKS PAGE
+  ───────────────────────────────────────── */
+  async function renderGuestView(folderId) {
+    S.guestView  = true;
+    S.eventMode  = true;
+    S.hostMode   = false;
+    loadEvents();
+    const event = findEventByFolderId(folderId);
+    if (event) {
+      S.currentEvent = event;
+      loadCuration(folderId);
+    }
+    // Hide host controls
+    if (D.curationBar) D.curationBar.classList.add('hidden');
+    if (D.refreshBtn) D.refreshBtn.classList.add('hidden');
+    if (D.pollIntervalSel) D.pollIntervalSel.classList.add('hidden');
+    if (D.protectBtn) D.protectBtn.classList.add('hidden');
+    if (D.embedBtn) D.embedBtn.classList.add('hidden');
+    // Browse the folder
+    D.landing.classList.add('hidden');
+    D.gallery.classList.remove('hidden');
+    D.copyLinkBtn.classList.remove('hidden');
+    S.stack = [];
+    await browse(folderId, event?.name || 'Gallery');
+    // Add powered-by footer
+    const powered = document.createElement('div');
+    powered.className = 'powered-by';
+    powered.innerHTML = 'Powered by <strong>Darkroom</strong>';
+    D.gallery.appendChild(powered);
+  }
+
+  async function renderThanksPage(folderId) {
+    if (!D.thanksPage) return;
+    document.body.classList.add('upload-mode');
+    const header = document.querySelector('header');
+    if (header) header.classList.add('hidden');
+    if (D.landing) D.landing.classList.add('hidden');
+    if (D.gallery) D.gallery.classList.add('hidden');
+    D.thanksPage.classList.remove('hidden');
+
+    loadEvents();
+    const event = findEventByFolderId(folderId);
+    loadCuration(folderId);
+
+    if (event) {
+      D.thanksEventName.textContent = event.name;
+      if (event.date) {
+        D.thanksEventDate.textContent = new Date(event.date + 'T12:00:00').toLocaleDateString(
+          'en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }
+        );
+      }
+    }
+
+    // Load files to show stats + featured photos
+    try {
+      const p = new URLSearchParams({
+        q: `'${folderId}' in parents and trashed=false`,
+        fields: 'files(id,name,mimeType,thumbnailLink,description)',
+        pageSize: 100,
+      });
+      if (getApiKey()) p.set('key', getApiKey());
+      const r = await fetch(`${API_BASE}?${p}`, { headers: authHeaders() });
+      if (!r.ok) throw new Error('Could not load photos');
+      const { files = [] } = await r.json();
+
+      const mediaFiles = files.filter(f => { const t=fileType(f.mimeType); return t==='image'||t==='video'; });
+      const contributors = new Set(files.map(f=>f.description).filter(Boolean));
+
+      if (D.thanksStats) {
+        D.thanksStats.innerHTML = `We collected <strong>${mediaFiles.length}</strong> photos from <strong>${contributors.size || 1}</strong> contributor${contributors.size !== 1 ? 's' : ''}`;
+      }
+
+      // Show featured photos first, then others, up to 9
+      const featuredMedia = S.featuredFiles
+        .map(id => mediaFiles.find(f => f.id === id))
+        .filter(Boolean);
+      const otherMedia = mediaFiles.filter(f => !S.featuredFiles.includes(f.id));
+      const displayMedia = [...featuredMedia, ...otherMedia].slice(0, 9);
+
+      if (D.thanksGrid) {
+        D.thanksGrid.innerHTML = displayMedia.map(f => {
+          const thumb = f.thumbnailLink?.replace(/=s\d+$/, '=w300') ||
+                        `https://drive.google.com/thumbnail?id=${f.id}&sz=w300`;
+          return `<img class="thanks-thumb" src="${esc(thumb)}" alt="${esc(f.name)}" loading="lazy">`;
+        }).join('');
+      }
+
+      // Gallery link
+      if (D.thanksGalleryBtn) {
+        D.thanksGalleryBtn.href = buildGalleryUrl(folderId);
+      }
+
+    } catch (e) {
+      if (D.thanksStats) D.thanksStats.textContent = 'Could not load photos.';
+    }
+  }
+
+  /* ─────────────────────────────────────────
      EVENTS
   ───────────────────────────────────────── */
   /* ─────────────────────────────────────────
@@ -2154,37 +3276,191 @@
     browse(folderId);
   });
 
-  /* ─── URL param boot (M6) ───────────────── */
+  /* ─── M13: Event dashboard & create modal ── */
+  if (D.newEventBtn)     D.newEventBtn.addEventListener('click', openEventCreateModal);
+  if (D.newEventBtnHdr)  D.newEventBtnHdr.addEventListener('click', openEventCreateModal);
+  if (D.eventCreateClose) D.eventCreateClose.addEventListener('click', closeEventCreateModal);
+  if (D.eventCreateModal) D.eventCreateModal.addEventListener('click', e => {
+    if (e.target === D.eventCreateModal) closeEventCreateModal();
+  });
+  if (D.eventCreateBtn) D.eventCreateBtn.addEventListener('click', submitCreateEvent);
+  if (D.eventNameInput) D.eventNameInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') submitCreateEvent();
+  });
+
+  // Cover style picker
+  if (D.coverStylePicker) {
+    D.coverStylePicker.addEventListener('click', e => {
+      const swatch = e.target.closest('.cover-swatch');
+      if (!swatch) return;
+      D.coverStylePicker.querySelectorAll('.cover-swatch').forEach(s => s.classList.remove('active'));
+      swatch.classList.add('active');
+      _selectedCoverStyle = swatch.dataset.style;
+    });
+  }
+
+  /* ─── M13: QR modal ─────────────────────── */
+  if (D.qrClose) D.qrClose.addEventListener('click', closeQRModal);
+  if (D.qrShareModal) D.qrShareModal.addEventListener('click', e => {
+    if (e.target === D.qrShareModal) closeQRModal();
+  });
+  if (D.qrCopyBtn) D.qrCopyBtn.addEventListener('click', () => {
+    navigator.clipboard.writeText(D.qrUrlInput.value).then(
+      () => showToast('Link copied!'),
+      () => showToast('Could not copy'),
+    );
+  });
+  if (D.qrDownloadBtn) D.qrDownloadBtn.addEventListener('click', downloadQRImage);
+  if (D.qrWhatsappBtn) D.qrWhatsappBtn.addEventListener('click', () => {
+    if (_currentQREvent) shareWhatsApp(D.qrUrlInput.value, _currentQREvent.name);
+  });
+  if (D.qrEmailBtn) D.qrEmailBtn.addEventListener('click', () => {
+    if (_currentQREvent) shareEmail(D.qrUrlInput.value, _currentQREvent.name);
+  });
+  // QR tab switching (M15)
+  if (D.qrTabUpload) D.qrTabUpload.addEventListener('click', () => {
+    _currentQRTab = 'upload';
+    D.qrTabUpload.classList.add('active');
+    D.qrTabGallery.classList.remove('active');
+    renderQRTab();
+  });
+  if (D.qrTabGallery) D.qrTabGallery.addEventListener('click', () => {
+    _currentQRTab = 'gallery';
+    D.qrTabGallery.classList.add('active');
+    D.qrTabUpload.classList.remove('active');
+    renderQRTab();
+  });
+
+  /* ─── M13: Upload page ───────────────────── */
+  if (D.uploadSigninBtn) D.uploadSigninBtn.addEventListener('click', guestSignIn);
+  if (D.addPhotosBtn) D.addPhotosBtn.addEventListener('click', () => D.filePicker?.click());
+  if (D.filePicker) D.filePicker.addEventListener('change', startFileUpload);
+  if (D.uploadMoreBtn) D.uploadMoreBtn.addEventListener('click', () => {
+    if (D.uploadDoneMsg) D.uploadDoneMsg.classList.add('hidden');
+    if (D.uploadList) D.uploadList.innerHTML = '';
+    D.filePicker?.click();
+  });
+
+  /* ─── M14: Polling controls ──────────────── */
+  if (D.refreshBtn) D.refreshBtn.addEventListener('click', () => {
+    const folderId = S.stack.at(-1)?.id;
+    if (folderId) {
+      D.refreshBtn.classList.add('spinning');
+      pollForNewFiles(folderId).finally(() => D.refreshBtn.classList.remove('spinning'));
+    }
+  });
+  if (D.pollIntervalSel) D.pollIntervalSel.addEventListener('change', e => {
+    S.pollInterval = +e.target.value;
+    const folderId = S.stack.at(-1)?.id;
+    if (folderId) startPolling(folderId); // restart with new interval
+  });
+  if (D.ssLiveBtn) D.ssLiveBtn.addEventListener('click', toggleSlideshowLive);
+
+  /* ─── M15: Curation bar ──────────────────── */
+  if (D.curationHideBtn) D.curationHideBtn.addEventListener('click', () => enterCurationMode('hide'));
+  if (D.curationFeatureBtn) D.curationFeatureBtn.addEventListener('click', () => enterCurationMode('feature'));
+  if (D.curationShareBtn) D.curationShareBtn.addEventListener('click', () => {
+    if (S.currentEvent) openQRModal(S.currentEvent);
+  });
+  if (D.curationThanksBtn) D.curationThanksBtn.addEventListener('click', () => {
+    if (S.currentEvent) window.open(buildThanksUrl(S.currentEvent.folderId), '_blank', 'noopener');
+  });
+
+  // Intercept grid clicks for curation mode
+  if (D.grid) {
+    D.grid.addEventListener('click', e => {
+      if (!_curationMode) return;
+      const card = e.target.closest('.card');
+      if (!card || card.classList.contains('card-folder')) return;
+      const fileId = card.dataset.id;
+      if (!fileId) return;
+      if (_curationMode === 'hide') {
+        toggleHideFile(fileId);
+        e.stopPropagation();
+      } else if (_curationMode === 'feature') {
+        toggleFeatureFile(fileId);
+        e.stopPropagation();
+      }
+    }, true); // capture phase so it runs before card click handlers
+  }
+
+  /* ─── M15: Thanks page ───────────────────── */
+  if (D.thanksDownloadBtn) D.thanksDownloadBtn.addEventListener('click', () => {
+    if (S.currentEvent) {
+      // Re-use existing select/download mechanism — browse then select all
+      showToast('Switch to gallery view to download all photos');
+    }
+  });
+
+  /* ─── URL param boot (M6 + M13/M14/M15) ─── */
   {
     const bp = new URLSearchParams(location.search);
     const bootFolder = bp.get('folder');
+    const bootEvent  = bp.get('event');
+    const bootUpload = bp.get('upload') === '1';
+    const bootDisplay = bp.get('display');
+    const bootView   = bp.get('view'); // 'grid'|'timeline'|'guest'|'thanks'
+
     if (bp.get('filter')) _pendingFilter = bp.get('filter');
     if (bp.get('sort'))   _pendingSort   = bp.get('sort');
     if (bp.get('q'))      _pendingSearch = bp.get('q');
     _pendingItem = bp.get('item');
+
     // M10: restore view mode from URL (takes precedence over localStorage)
-    const bootView = bp.get('view');
     if (bootView === 'timeline') {
       S.viewMode = 'timeline';
       D.viewGridBtn.classList.remove('active');
       D.viewTimelineBtn.classList.add('active');
       D.printBtn.classList.remove('hidden');
     }
-    // M12: if ?lock= present, show gate instead of browsing immediately
-    const bootLock = bp.get('lock');
-    if (bootFolder && bootLock) {
-      S.lockHash = bootLock;
-      D.input.value = bootFolder;
-      showLockGate();
-      // browsing will happen inside tryUnlock() after correct password
-    } else if (bootFolder) {
+
+    if (bootEvent && bootUpload) {
+      // M13: Guest upload page
+      renderUploadPage(bootEvent);
+    } else if (bootEvent && bootDisplay === 'stats') {
+      // M14: Stats display wall
+      renderStatsDisplay(bootEvent);
+    } else if (bootEvent && bootView === 'guest') {
+      // M15: Guest read-only gallery
+      renderGuestView(bootEvent);
+    } else if (bootEvent && bootView === 'thanks') {
+      // M15: Thank you summary page
+      renderThanksPage(bootEvent);
+    } else if (bootEvent) {
+      // M13: event gallery mode
+      S.eventMode = true;
+      loadEvents();
+      S.currentEvent = findEventByFolderId(bootEvent);
+      S.hostMode = !!S.currentEvent; // host if we have event data
+      if (S.currentEvent) loadCuration(bootEvent);
+      if (D.refreshBtn) D.refreshBtn.classList.remove('hidden');
+      if (D.pollIntervalSel) D.pollIntervalSel.classList.remove('hidden');
+      if (S.hostMode && D.curationBar) D.curationBar.classList.remove('hidden');
       S.stack = [];
-      browse(bootFolder);
+      browse(bootEvent);
+      startPolling(bootEvent);
+    } else {
+      // M12: if ?lock= present, show gate instead of browsing immediately
+      const bootLock = bp.get('lock');
+      if (bootFolder && bootLock) {
+        S.lockHash = bootLock;
+        D.input.value = bootFolder;
+        showLockGate();
+        // browsing will happen inside tryUnlock() after correct password
+      } else if (bootFolder) {
+        S.stack = [];
+        browse(bootFolder);
+      }
     }
   }
 
   /* ─── Tagline cycler boot (M11) ─────────── */
   startTaglineCycle();
+
+  /* ─── M13: Event boot ───────────────────── */
+  loadEvents();
+  // Show event dashboard on landing if there are events and host is signed in
+  // (tryRestoreAuth below will call renderEventDashboard() if token is valid)
 
   /* ─── AI Tagging boot (M8) ─────────────── */
   loadAiTagsFromStorage();

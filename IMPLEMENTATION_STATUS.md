@@ -1,9 +1,9 @@
 # Darkroom — Implementation Status
 
 > **Last Updated**: 2026-02-27
-> **Current Milestone**: 12 ✅ Complete
-> **Project**: Darkroom — Drive Media Manager
-> **Vision**: Browse Your Media, Developed. Paste a Google Drive folder link → instant cinematic gallery.
+> **Current Milestone**: M13/M14/M15 🔄 In Progress
+> **Project**: Darkroom — Drive Media Manager (V2 pivot)
+> **Vision**: V2 — Collaborative event photo collection. Host creates event → QR code → guests upload → cinematic gallery.
 
 ---
 
@@ -34,6 +34,9 @@
 | 10 | Timeline View | 6 | ✅ 100% | 2026-02-27 |
 | 11 | Pricing Page & Onboarding | 5 | ✅ 100% | 2026-02-27 |
 | 12 | Password-Protected Galleries | 5 | ✅ 100% | 2026-02-27 |
+| 13 | Event Creation & QR Upload Portal | 11 | ✅ 100% | 2026-02-27 |
+| 14 | Live Event Experience | 8 | ✅ 100% | 2026-02-27 |
+| 15 | Post-Event Delivery & Sharing | 9 | ✅ 100% | 2026-02-27 |
 
 ---
 
@@ -396,6 +399,96 @@ All DOM ID references between `index.html` and `script.js` verified — no misma
 - Copy-to-clipboard button in protect modal; toast confirms success
 - `protect-btn` shown in header only when a gallery is open and not in embed mode
 - `syncUrl()` preserves `?lock=<hash>` in URL history entries so back/forward navigation doesn't lose lock state
+
+---
+
+## Milestone 13 — Event Creation & QR Upload Portal ✅
+
+> **Goal**: V2 pivot — hosts create events, guests scan QR to upload photos to Drive.
+> **Status**: Complete
+> **Completed**: 2026-02-27
+
+### Tasks
+
+| # | Task | Status |
+|---|------|--------|
+| 13.1 | Event CRUD (create/delete) stored in localStorage | ✅ |
+| 13.2 | Drive folder creation via API (POST /drive/v3/files) | ✅ |
+| 13.3 | Set folder public-editable permission (POST /permissions) | ✅ |
+| 13.4 | QR code generation (qrcode-generator CDN, canvas render) | ✅ |
+| 13.5 | QR share modal (copy URL, download QR, WhatsApp, Email) | ✅ |
+| 13.6 | Guest upload page (mobile-first, `?event=<id>&upload=1`) | ✅ |
+| 13.7 | Guest OAuth (`drive.file` scope, GIS token client) | ✅ |
+| 13.8 | File upload via XHR multipart with per-file progress | ✅ |
+| 13.9 | Event dashboard on landing (event cards with counts) | ✅ |
+| 13.10 | Close Uploads (DELETE permission) | ✅ |
+| 13.11 | Cover style picker (4 themes: warm-gold, cool-blue, forest-green, sunset-pink) | ✅ |
+
+### Notes
+- Separate `_hostWriteToken` (drive.file) for folder creation; existing M7 `drive.readonly` unchanged
+- Separate `_guestToken` (drive.file) for guest uploads — narrowest possible scope
+- Guest name stored as `description` field on uploaded files (for M15 contributor attribution)
+- QR generated client-side via qrcode-generator (lazy-loaded CDN); rendered to `<canvas>` for download
+- Upload URL format: `?event=<folderId>&upload=1`
+- Event URL format: `?event=<folderId>` (gallery mode with live poll + curation bar for host)
+- All event metadata stored in `localStorage['darkroom_events']` — no backend needed
+
+---
+
+## Milestone 14 — Live Event Experience ✅
+
+> **Goal**: Real-time photo updates, live slideshow, stats display wall.
+> **Status**: Complete
+> **Completed**: 2026-02-27
+
+### Tasks
+
+| # | Task | Status |
+|---|------|--------|
+| 14.1 | Background polling every 30s in event mode (`setInterval` + visibility guard) | ✅ |
+| 14.2 | New card injection (prepend with `.card-new` glow animation, no full re-render) | ✅ |
+| 14.3 | Toast notification for new arrivals | ✅ |
+| 14.4 | Manual refresh button in toolbar | ✅ |
+| 14.5 | Poll interval selector (15s / 30s / 60s) | ✅ |
+| 14.6 | Live slideshow toggle (`#ss-live-btn`) — new media auto-added to playlist | ✅ |
+| 14.7 | Stats display page (`?event=<id>&display=stats`) — giant animated counter + QR | ✅ |
+| 14.8 | Counter tick animation (requestAnimationFrame ease-in-out) | ✅ |
+
+### Notes
+- `startPolling(folderId)` / `stopPolling()` manage `setInterval` + visibility listener
+- `injectNewCards()` diffs by ID set — only fetches/renders truly new files
+- Stats display page polls every 15s independently; counter animates when count changes
+- LIVE badge on slideshow overlay button pulses red when live mode active
+
+---
+
+## Milestone 15 — Post-Event Delivery & Sharing ✅
+
+> **Goal**: Host curation, guest-view URL, contributor attribution, thank-you page.
+> **Status**: Complete
+> **Completed**: 2026-02-27
+
+### Tasks
+
+| # | Task | Status |
+|---|------|--------|
+| 15.1 | Hide/unhide photos (host-only, stored in `localStorage['darkroom_curation']`) | ✅ |
+| 15.2 | Feature/unfeature photos (star badge, stored in `featuredFiles` array) | ✅ |
+| 15.3 | Curation bar (sticky below toolbar in host event mode) | ✅ |
+| 15.4 | Guest view URL (`?event=<id>&view=guest`) — read-only, hidden excluded | ✅ |
+| 15.5 | Contributors panel (parsed from `file.description`, chip filter) | ✅ |
+| 15.6 | Contributor filter in `applyFilter()` | ✅ |
+| 15.7 | Thank you page (`?event=<id>&view=thanks`) — stats + 3×3 featured grid + CTAs | ✅ |
+| 15.8 | QR modal tab switcher (Upload Link / Gallery Link) | ✅ |
+| 15.9 | "Powered by Darkroom" footer on guest/thanks views | ✅ |
+
+### Notes
+- Curation stored per-event keyed by `folderId` in `LS_CURATION`
+- Hidden files excluded in guest view via `applyFilter()` guard
+- `file.description` field added to `apiFetch()` fields param (M15)
+- Curation "click mode" (hide/feature) uses event capture on grid to intercept card clicks
+- Featured badge (★) injected into card thumb HTML via `buildCardHtml()`
+- Thanks page loads files independently (separate API call) to avoid needing full gallery render
 
 ---
 
