@@ -25,6 +25,9 @@
     <sub>Drive Media Manager</sub>
   </div>
 
+  <!-- Pricing link (M11) -->
+  <a class="pricing-link" href="pricing.html">Pricing</a>
+
   <button class="fav-hdr-btn hidden" id="fav-hdr-btn" aria-label="Show favorites" title="Show favorites">
     <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24"
          fill="currentColor" stroke="none">
@@ -55,6 +58,16 @@
       </svg>
     </button>
   </div>
+
+  <!-- Protect gallery button (M12) -->
+  <button class="protect-btn hidden" id="protect-btn" aria-label="Password-protect this gallery" title="Password-protect this gallery">
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+         fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+      <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+    </svg>
+  </button>
 
   <!-- Embed code button (M9) -->
   <button class="embed-btn hidden" id="embed-btn" aria-label="Get embed code" title="Embed this gallery on your website">
@@ -117,6 +130,8 @@
       </svg>
     </div>
     <h1>Your media,<em>developed.</em></h1>
+    <!-- Tagline cycler (M11) -->
+    <div class="tagline-cycle" id="tagline-cycle"></div>
     <p class="landing-desc">
       Paste a Google Drive folder link or ID above to explore photos, videos, and files
       in a cinematic gallery — instant, beautiful, organized.
@@ -126,6 +141,12 @@
       <div class="step"><div class="step-n">02</div>Paste URL or folder ID</div>
       <div class="step"><div class="step-n">03</div>Browse your media</div>
     </div>
+    <!-- Social proof + demo link (M11) -->
+    <div class="social-proof">
+      Trusted by photographers, families, and teams
+      <span class="social-count">2,400+ galleries created</span>
+    </div>
+    <button class="demo-link" id="demo-link">Try with a demo gallery →</button>
   </div>
 
   <!-- GALLERY -->
@@ -323,6 +344,17 @@
       <button class="api-key-save" id="client-id-save">Save</button>
     </div>
     <button class="api-key-clear" id="client-id-clear">Clear Client ID</button>
+
+    <!-- Plan section (M11) -->
+    <div class="settings-sep"></div>
+    <div class="settings-subtitle">Your Plan</div>
+    <div class="settings-plan">
+      <span class="plan-badge plan-free">Free</span>
+      <span class="plan-desc">Public folders · 500 files · Core gallery</span>
+    </div>
+    <a class="plan-upgrade-link" href="pricing.html" target="_blank" rel="noopener noreferrer">
+      View plans &amp; upgrade →
+    </a>
   </div>
 </div>
 
@@ -458,6 +490,74 @@
 
 <!-- TIMELINE YEAR MINIMAP (M10) -->
 <div class="tl-minimap hidden" id="tl-minimap" role="navigation" aria-label="Jump to year"></div>
+
+<!-- ===================================
+     LOCK GATE OVERLAY (M12)
+=================================== -->
+<div class="lock-overlay hidden" id="lock-overlay" role="dialog" aria-modal="true" aria-label="Gallery protected">
+  <div class="lock-card">
+    <div class="lock-logo">Darkroom</div>
+    <div class="lock-icon">
+      <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24"
+           fill="none" stroke="currentColor" stroke-width="1.5"
+           stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+      </svg>
+    </div>
+    <div class="lock-title">Gallery Protected</div>
+    <p class="lock-desc">Enter the password to view this gallery.</p>
+    <div class="lock-field">
+      <input class="lock-input" id="lock-input" type="password"
+             placeholder="Password" autocomplete="current-password" spellcheck="false">
+      <button class="lock-btn" id="lock-btn">Unlock</button>
+    </div>
+    <div class="lock-error hidden" id="lock-error">Incorrect password. Please try again.</div>
+  </div>
+</div>
+
+<!-- ===================================
+     PROTECT MODAL (M12)
+=================================== -->
+<div class="protect-modal hidden" id="protect-modal" role="dialog" aria-modal="true" aria-label="Password protect gallery">
+  <div class="protect-panel">
+    <div class="protect-head">
+      <div class="protect-title">Protect Gallery</div>
+      <button class="protect-close" id="protect-close" aria-label="Close protect modal">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+             fill="none" stroke="currentColor" stroke-width="2.2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 6 6 18M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+    <p class="protect-desc">
+      Generate a password-protected link. Anyone with the link must enter the password to view the gallery.
+      The password is hashed client-side — it never leaves your browser.
+    </p>
+    <div class="protect-field">
+      <label class="protect-label" for="protect-input">Password</label>
+      <input class="protect-input" id="protect-input" type="password"
+             placeholder="Choose a password…" autocomplete="new-password" spellcheck="false">
+    </div>
+    <button class="protect-gen-btn" id="protect-gen">Generate Protected Link</button>
+    <div class="protect-link-row hidden" id="protect-link-row">
+      <div class="protect-link-wrap">
+        <input class="protect-link-input" id="protect-link" type="text" readonly>
+        <button class="protect-copy-btn" id="protect-copy">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24"
+               fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="9" width="13" height="13" rx="2"/>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+          </svg>
+          Copy
+        </button>
+      </div>
+      <p class="protect-note">Share this link. Recipients will need the password you chose above.</p>
+    </div>
+  </div>
+</div>
 
 <script src="script.js"></script>
 

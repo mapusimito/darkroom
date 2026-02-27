@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pricing — Darkroom</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,700&family=Syne:wght@400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .pricing-page {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 5rem 1.5rem 4rem;
+    }
+    .pricing-back {
+      position: fixed;
+      top: 1rem;
+      left: 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: .4rem;
+      font-family: var(--ff-ui);
+      font-size: .78rem;
+      font-weight: 500;
+      color: var(--txt-dim);
+      text-decoration: none;
+      padding: 6px 12px;
+      border-radius: var(--rPill);
+      border: 1px solid var(--glass-border);
+      background: var(--glass-bg);
+      transition: color .2s, border-color .2s;
+      z-index: 10;
+    }
+    .pricing-back:hover { color: var(--txt-main); border-color: rgba(255,107,53,.4); }
+    .pricing-eyebrow {
+      font-family: var(--ff-ui);
+      font-size: .7rem;
+      font-weight: 700;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: .75rem;
+    }
+    .pricing-headline {
+      font-family: var(--ff-disp);
+      font-size: clamp(2rem, 5vw, 3rem);
+      font-weight: 700;
+      color: var(--txt-main);
+      text-align: center;
+      line-height: 1.2;
+      margin: 0 0 .5rem;
+    }
+    .pricing-headline em {
+      font-style: italic;
+      background: linear-gradient(90deg, var(--accent), var(--amber));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .pricing-sub {
+      font-family: var(--ff-ui);
+      font-size: .9rem;
+      color: var(--txt-dim);
+      text-align: center;
+      margin: 0 0 3rem;
+      max-width: 480px;
+    }
+    .pricing-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1.25rem;
+      width: 100%;
+      max-width: 860px;
+    }
+    .pricing-card {
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--rXL);
+      box-shadow: var(--shadow-md);
+      padding: 1.75rem 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: .65rem;
+      transition: border-color .25s, box-shadow .25s;
+    }
+    .pricing-card:hover {
+      border-color: rgba(255,107,53,.2);
+      box-shadow: var(--shadow-lg);
+    }
+    .pricing-card.popular {
+      background: rgba(255,107,53,.04);
+      border-color: rgba(255,107,53,.35);
+    }
+    .pricing-card.popular:hover {
+      border-color: rgba(255,107,53,.55);
+    }
+    .card-tier-wrap {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .card-tier {
+      font-family: var(--ff-ui);
+      font-size: .7rem;
+      font-weight: 700;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--txt-muted);
+    }
+    .popular-badge {
+      font-family: var(--ff-ui);
+      font-size: .62rem;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      padding: 3px 8px;
+      border-radius: var(--rPill);
+      background: rgba(255,107,53,.2);
+      border: 1px solid rgba(255,107,53,.35);
+      color: var(--accent);
+    }
+    .card-price {
+      display: flex;
+      align-items: baseline;
+      gap: .25rem;
+      margin: .25rem 0;
+    }
+    .price-amount {
+      font-family: var(--ff-disp);
+      font-size: 2.4rem;
+      font-weight: 700;
+      color: var(--txt-main);
+      line-height: 1;
+    }
+    .price-period {
+      font-family: var(--ff-ui);
+      font-size: .78rem;
+      color: var(--txt-dim);
+    }
+    .card-desc {
+      font-family: var(--ff-ui);
+      font-size: .8rem;
+      color: var(--txt-dim);
+      line-height: 1.5;
+      margin: 0;
+      border-bottom: 1px solid var(--glass-border);
+      padding-bottom: .75rem;
+    }
+    .card-features {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: .4rem;
+    }
+    .card-features li {
+      display: flex;
+      align-items: flex-start;
+      gap: .5rem;
+      font-family: var(--ff-ui);
+      font-size: .8rem;
+      color: var(--txt-dim);
+      line-height: 1.4;
+    }
+    .card-features li::before {
+      content: '✓';
+      color: var(--accent);
+      font-weight: 700;
+      flex-shrink: 0;
+      margin-top: .05em;
+    }
+    .card-features li.feat-dim::before {
+      color: var(--txt-dim);
+    }
+    .card-features li.feat-dim {
+      opacity: .5;
+    }
+    .card-cta {
+      margin-top: auto;
+      padding-top: 1rem;
+    }
+    .cta-btn {
+      display: block;
+      width: 100%;
+      padding: 10px;
+      border-radius: var(--r);
+      font-family: var(--ff-ui);
+      font-size: .85rem;
+      font-weight: 600;
+      text-align: center;
+      cursor: pointer;
+      text-decoration: none;
+      transition: opacity .2s, background .2s;
+    }
+    .cta-btn.cta-primary {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+    }
+    .cta-btn.cta-primary:hover { opacity: .85; }
+    .cta-btn.cta-secondary {
+      background: transparent;
+      border: 1px solid var(--glass-border);
+      color: var(--txt-dim);
+    }
+    .cta-btn.cta-secondary:hover {
+      border-color: rgba(255,107,53,.4);
+      color: var(--txt-main);
+      background: rgba(255,107,53,.06);
+    }
+    .pricing-note {
+      margin-top: 2.5rem;
+      font-family: var(--ff-ui);
+      font-size: .75rem;
+      color: var(--txt-dim);
+      text-align: center;
+      max-width: 480px;
+    }
+    .pricing-note a { color: var(--accent); text-decoration: none; }
+    .pricing-note a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+<a class="pricing-back" href="index.html">
+  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24"
+       fill="none" stroke="currentColor" stroke-width="2.5"
+       stroke-linecap="round" stroke-linejoin="round">
+    <path d="m15 18-6-6 6-6"/>
+  </svg>
+  Back to Darkroom
+</a>
+
+<div class="pricing-page">
+  <div class="pricing-eyebrow">Pricing</div>
+  <h1 class="pricing-headline">Simple plans for<br><em>every gallery.</em></h1>
+  <p class="pricing-sub">Start free. Upgrade when you need more power. No lock-in.</p>
+
+  <div class="pricing-grid">
+
+    <!-- FREE -->
+    <div class="pricing-card">
+      <div class="card-tier-wrap">
+        <div class="card-tier">Free</div>
+      </div>
+      <div class="card-price">
+        <span class="price-amount">$0</span>
+        <span class="price-period">/ forever</span>
+      </div>
+      <p class="card-desc">Everything you need to share a public Drive folder as a beautiful gallery.</p>
+      <ul class="card-features">
+        <li>Public Google Drive folders</li>
+        <li>Up to 500 files per gallery</li>
+        <li>Grid &amp; lightbox viewer</li>
+        <li>Search &amp; filter by type</li>
+        <li>Subfolder navigation</li>
+        <li>Mobile responsive</li>
+        <li class="feat-dim">Slideshow &amp; Ken Burns</li>
+        <li class="feat-dim">Favorites &amp; shortlists</li>
+        <li class="feat-dim">ZIP download</li>
+        <li class="feat-dim">Timeline view</li>
+        <li class="feat-dim">AI image tags</li>
+        <li class="feat-dim">Embed widget</li>
+        <li class="feat-dim">Password protection</li>
+        <li class="feat-dim">Private folders (OAuth)</li>
+      </ul>
+      <div class="card-cta">
+        <a class="cta-btn cta-secondary" href="index.html">Get started free</a>
+      </div>
+    </div>
+
+    <!-- PRO -->
+    <div class="pricing-card popular">
+      <div class="card-tier-wrap">
+        <div class="card-tier">Pro</div>
+        <span class="popular-badge">Popular</span>
+      </div>
+      <div class="card-price">
+        <span class="price-amount">$8</span>
+        <span class="price-period">/ month</span>
+      </div>
+      <p class="card-desc">For photographers, families, and teams who want the full experience.</p>
+      <ul class="card-features">
+        <li>Everything in Free</li>
+        <li>Public &amp; private folders</li>
+        <li>Unlimited files per gallery</li>
+        <li>Slideshow with Ken Burns effect</li>
+        <li>Favorites &amp; shortlists</li>
+        <li>Multi-file ZIP download</li>
+        <li>Timeline view &amp; print export</li>
+        <li>AI image tagging (on-device)</li>
+        <li>Embed widget + PostMessage API</li>
+        <li>Password-protected galleries</li>
+        <li>URL deep-linking &amp; sharing</li>
+        <li class="feat-dim">Custom branding</li>
+        <li class="feat-dim">Analytics dashboard</li>
+      </ul>
+      <div class="card-cta">
+        <a class="cta-btn cta-primary" href="index.html">Start Pro — $8/mo</a>
+      </div>
+    </div>
+
+    <!-- CREATOR -->
+    <div class="pricing-card">
+      <div class="card-tier-wrap">
+        <div class="card-tier">Creator</div>
+      </div>
+      <div class="card-price">
+        <span class="price-amount">$20</span>
+        <span class="price-period">/ month</span>
+      </div>
+      <p class="card-desc">For agencies, studios, and creators who need white-label galleries at scale.</p>
+      <ul class="card-features">
+        <li>Everything in Pro</li>
+        <li>Custom branding &amp; domain</li>
+        <li>Analytics dashboard</li>
+        <li>Multiple Drive accounts</li>
+        <li>Bulk gallery management</li>
+        <li>Priority support</li>
+        <li>Early access to new features</li>
+      </ul>
+      <div class="card-cta">
+        <a class="cta-btn cta-secondary" href="mailto:hello@darkroom.app">Contact us</a>
+      </div>
+    </div>
+
+  </div>
+
+  <p class="pricing-note">
+    All plans include browser-only processing — your files never leave Google Drive.
+    Have a question? <a href="mailto:hello@darkroom.app">Get in touch.</a>
+  </p>
+</div>
+
+</body>
+</html>

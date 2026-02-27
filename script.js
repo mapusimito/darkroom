@@ -16,6 +16,7 @@
   const AI_MAX_PREDS  = 5;     // predictions to request from MobileNet
   const AI_SHOW_TAGS  = 3;     // max tags shown per card
   const LS_VIEW_MODE  = 'darkroom_view_mode';
+  const DEMO_FOLDER_ID = ''; // set to a public Drive folder ID for the demo button (M11)
 
   /* ─────────────────────────────────────────
      EMBED MODE STATE (M9)
@@ -152,6 +153,8 @@
     collapsedGroups: new Set(),
     // View mode (M10)
     viewMode: 'grid', // 'grid' | 'timeline'
+    // Password lock (M12)
+    lockHash: '',
   };
 
   /* ─────────────────────────────────────────
@@ -231,6 +234,22 @@
     embedHeight: el('embed-height'),
     embedCode:   el('embed-code'),
     embedCopy:   el('embed-copy'),
+    // M11 — landing
+    taglineCycle: el('tagline-cycle'),
+    demoLink:     el('demo-link'),
+    // M12 — protect / lock
+    protectBtn:      el('protect-btn'),
+    protectModal:    el('protect-modal'),
+    protectClose:    el('protect-close'),
+    protectInput:    el('protect-input'),
+    protectGen:      el('protect-gen'),
+    protectLinkRow:  el('protect-link-row'),
+    protectLink:     el('protect-link'),
+    protectCopy:     el('protect-copy'),
+    lockOverlay:     el('lock-overlay'),
+    lockInput:       el('lock-input'),
+    lockBtn:         el('lock-btn'),
+    lockError:       el('lock-error'),
     // AI tagging (M8)
     aiBtn:       el('ai-btn'),
     aiStatus:    el('ai-status'),
@@ -340,6 +359,7 @@
     if (S.lbIdx >= 0 && S.media[S.lbIdx]) p.set('item', S.media[S.lbIdx].id);
     if (S.viewMode && S.viewMode !== 'grid') p.set('view', S.viewMode); // M10
     if (_isEmbed) p.set('embed', '1'); // M9: preserve embed param in URL history
+    if (S.lockHash) p.set('lock', S.lockHash); // M12: preserve lock hash
     const url = location.pathname + '?' + p.toString();
     const shouldPush = _nextSyncPush && !_skipNextSync;
     _nextSyncPush = false;
@@ -709,6 +729,7 @@
     D.gallery.classList.remove('hidden');
     D.copyLinkBtn.classList.remove('hidden'); // M6: show copy link btn when gallery opens
     if (!_isEmbed) D.embedBtn.classList.remove('hidden'); // M9: show embed btn (not in embed mode itself)
+    if (!_isEmbed) D.protectBtn.classList.remove('hidden'); // M12
     D.search.value = ''; S.search = ''; S.filter = 'all';
     document.querySelectorAll('.ftab').forEach(t => t.classList.toggle('active', t.dataset.filter==='all'));
     D.loadWrap.classList.add('hidden'); D.stats.innerHTML = '';
@@ -1764,6 +1785,109 @@
   }
 
   /* ─────────────────────────────────────────
+     PRICING & ONBOARDING (M11)
+  ───────────────────────────────────────── */
+  const TAGLINES = [
+    'Your Drive folder, beautifully presented.',
+    'Browse photos + videos like a pro.',
+    'Share memories, not Drive links.',
+    'Instant gallery — no upload needed.',
+    'Your media, developed.',
+  ];
+  let _taglineIdx = 0;
+  let _taglineTimer = null;
+
+  function startTaglineCycle() {
+    if (!D.taglineCycle) return;
+    D.taglineCycle.textContent = TAGLINES[0];
+    _taglineTimer = setInterval(() => {
+      D.taglineCycle.classList.add('tagline-out');
+      setTimeout(() => {
+        _taglineIdx = (_taglineIdx + 1) % TAGLINES.length;
+        D.taglineCycle.textContent = TAGLINES[_taglineIdx];
+        D.taglineCycle.classList.remove('tagline-out');
+      }, 370); // slightly longer than the CSS transition
+    }, 3500);
+  }
+
+  /* ─────────────────────────────────────────
+     PASSWORD PROTECTION (M12)
+  ───────────────────────────────────────── */
+  async function hashPassword(pw) {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pw));
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  function showLockGate() {
+    D.lockOverlay.classList.remove('hidden');
+    D.lockInput.value = '';
+    D.lockError.classList.add('hidden');
+    document.body.style.overflow = 'hidden';
+    setTimeout(() => D.lockInput.focus(), 50);
+  }
+
+  function dismissLockGate() {
+    D.lockOverlay.classList.add('hidden');
+    document.body.style.overflow = '';
+  }
+
+  async function tryUnlock() {
+    const pw = D.lockInput.value;
+    if (!pw) return;
+    const hash = await hashPassword(pw);
+    if (hash === S.lockHash) {
+      dismissLockGate();
+      // Now proceed to browse the folder from the URL
+      const bp = new URLSearchParams(location.search);
+      const folderId = bp.get('folder');
+      if (folderId) { D.input.value = folderId; S.stack = []; browse(folderId); }
+    } else {
+      D.lockError.classList.remove('hidden');
+      D.lockCard && D.lockCard.classList.remove('lock-shake');
+      // Trigger shake on the card
+      const card = D.lockOverlay.querySelector('.lock-card');
+      if (card) {
+        card.classList.remove('lock-shake');
+        void card.offsetWidth; // reflow to restart animation
+        card.classList.add('lock-shake');
+      }
+      D.lockInput.select();
+    }
+  }
+
+  function openProtectModal() {
+    D.protectInput.value = '';
+    D.protectLinkRow.classList.add('hidden');
+    D.protectModal.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+    setTimeout(() => D.protectInput.focus(), 50);
+  }
+
+  function closeProtectModal() {
+    D.protectModal.classList.add('hidden');
+    document.body.style.overflow = '';
+  }
+
+  async function generateProtectedLink() {
+    const pw = D.protectInput.value.trim();
+    if (!pw) { D.protectInput.focus(); return; }
+    const hash = await hashPassword(pw);
+    S.lockHash = hash;
+    // Build URL with ?lock= param preserving current state
+    const p = new URLSearchParams();
+    const folderId = S.stack.at(-1)?.id;
+    if (folderId) p.set('folder', folderId);
+    if (S.filter && S.filter !== 'all') p.set('filter', S.filter);
+    if (S.sort   && S.sort   !== 'name-asc') p.set('sort', S.sort);
+    if (S.search) p.set('q', S.search);
+    p.set('lock', hash);
+    const url = location.origin + location.pathname + '?' + p.toString();
+    D.protectLink.value = url;
+    D.protectLinkRow.classList.remove('hidden');
+    D.protectLink.select();
+  }
+
+  /* ─────────────────────────────────────────
      POSTMESSAGE (M9 — optional)
   ───────────────────────────────────────── */
   function postParent(type, data) {
@@ -1953,6 +2077,34 @@
     else            enableAiTagging();
   });
 
+  /* ─── Demo link (M11) ──────────────────── */
+  D.demoLink.addEventListener('click', () => {
+    if (!DEMO_FOLDER_ID) {
+      showToast('No demo folder configured.');
+      return;
+    }
+    D.input.value = DEMO_FOLDER_ID;
+    S.stack = [];
+    browse(DEMO_FOLDER_ID);
+  });
+
+  /* ─── Protect gallery (M12) ─────────────── */
+  D.protectBtn.addEventListener('click', openProtectModal);
+  D.protectClose.addEventListener('click', closeProtectModal);
+  D.protectModal.addEventListener('click', e => { if (e.target === D.protectModal) closeProtectModal(); });
+  D.protectGen.addEventListener('click', generateProtectedLink);
+  D.protectInput.addEventListener('keydown', e => { if (e.key === 'Enter') generateProtectedLink(); });
+  D.protectCopy.addEventListener('click', () => {
+    navigator.clipboard.writeText(D.protectLink.value).then(
+      () => { showToast('Protected link copied!'); closeProtectModal(); },
+      () => showToast('Could not copy — try selecting the link manually'),
+    );
+  });
+
+  /* ─── Lock gate (M12) ──────────────────── */
+  D.lockBtn.addEventListener('click', tryUnlock);
+  D.lockInput.addEventListener('keydown', e => { if (e.key === 'Enter') tryUnlock(); });
+
   /* ─── Embed widget (M9) ─────────────────── */
   D.embedBtn.addEventListener('click', openEmbedModal);
   D.embedClose.addEventListener('click', closeEmbedModal);
@@ -1996,6 +2148,8 @@
     D.viewGridBtn.classList.toggle('active', S.viewMode === 'grid');
     D.viewTimelineBtn.classList.toggle('active', S.viewMode === 'timeline');
     D.printBtn.classList.toggle('hidden', S.viewMode !== 'timeline');
+    // M12: restore lock hash
+    S.lockHash = p.get('lock') || '';
     S.stack = [];
     browse(folderId);
   });
@@ -2016,8 +2170,21 @@
       D.viewTimelineBtn.classList.add('active');
       D.printBtn.classList.remove('hidden');
     }
-    if (bootFolder) { D.input.value = bootFolder; S.stack = []; browse(bootFolder); }
+    // M12: if ?lock= present, show gate instead of browsing immediately
+    const bootLock = bp.get('lock');
+    if (bootFolder && bootLock) {
+      S.lockHash = bootLock;
+      D.input.value = bootFolder;
+      showLockGate();
+      // browsing will happen inside tryUnlock() after correct password
+    } else if (bootFolder) {
+      S.stack = [];
+      browse(bootFolder);
+    }
   }
+
+  /* ─── Tagline cycler boot (M11) ─────────── */
+  startTaglineCycle();
 
   /* ─── AI Tagging boot (M8) ─────────────── */
   loadAiTagsFromStorage();

@@ -1,7 +1,7 @@
 # Darkroom — Implementation Status
 
 > **Last Updated**: 2026-02-27
-> **Current Milestone**: 10 ✅ Complete
+> **Current Milestone**: 12 ✅ Complete
 > **Project**: Darkroom — Drive Media Manager
 > **Vision**: Browse Your Media, Developed. Paste a Google Drive folder link → instant cinematic gallery.
 
@@ -32,6 +32,8 @@
 | 8 | AI Tagging (On-Device) | 7 | ✅ 100% | 2026-02-27 |
 | 9 | Embeddable Gallery Widget | 5 | ✅ 100% | 2026-02-27 |
 | 10 | Timeline View | 6 | ✅ 100% | 2026-02-27 |
+| 11 | Pricing Page & Onboarding | 5 | ✅ 100% | 2026-02-27 |
+| 12 | Password-Protected Galleries | 5 | ✅ 100% | 2026-02-27 |
 
 ---
 
@@ -338,6 +340,62 @@ All DOM ID references between `index.html` and `script.js` verified — no misma
 - `buildTlMinimap(years)` — year array from `groupFiles()` result; re-disconnects previous observer on re-render
 - Print button (toolbar, visible only in timeline mode) calls `window.print()`; `@media print` CSS hides all UI chrome and renders timeline cleanly for PDF export
 - `renderGrid()` checks `S.viewMode === 'timeline'` first, dispatching to `renderTimeline()` before any other render path
+
+---
+
+---
+
+## Milestone 11 — Pricing Page & Onboarding ✅
+
+> **Goal**: Add a pricing page and landing page improvements to help users understand the product and upgrade.
+> **Status**: Complete
+> **Completed**: 2026-02-27
+
+### Tasks
+
+| # | Task | Status |
+|---|------|--------|
+| 11.1 | Tagline cycler on landing (rotating phrases, fade transition) | ✅ |
+| 11.2 | Social proof section + demo link button on landing | ✅ |
+| 11.3 | "Pricing" link in header pointing to `pricing.html` | ✅ |
+| 11.4 | `pricing.html` — 3-tier standalone pricing page (Free / Pro / Creator) | ✅ |
+| 11.5 | "Your Plan" section in settings modal with upgrade link | ✅ |
+
+### Notes
+- `startTaglineCycle()` rotates 5 taglines every 3.5s with `.tagline-out` fade (0.35s CSS transition)
+- `DEMO_FOLDER_ID = ''` constant — set to a public Drive ID to enable the "Try demo" button
+- `pricing.html` is a standalone page with inline pricing CSS; imports `style.css` for design tokens
+- Three tiers: Free (public folders, 500 files, core gallery) / Pro ($8/mo, full features) / Creator ($20/mo, white-label)
+- Settings modal plan section shows "Free" badge with link to `pricing.html`
+- `pricing-link` in header is always visible; collapses gracefully on small screens
+
+---
+
+## Milestone 12 — Password-Protected Galleries ✅
+
+> **Goal**: Let gallery owners generate a password-protected share link — visitors must enter the password to see the gallery.
+> **Status**: Complete
+> **Completed**: 2026-02-27
+
+### Tasks
+
+| # | Task | Status |
+|---|------|--------|
+| 12.1 | Protect button in header (visible when gallery is open) | ✅ |
+| 12.2 | Protect modal: enter password → generate protected URL with SHA-256 hash | ✅ |
+| 12.3 | Lock gate overlay: shown on boot when `?lock=<hash>` in URL | ✅ |
+| 12.4 | `hashPassword()` using `crypto.subtle.digest('SHA-256')` — no dependencies | ✅ |
+| 12.5 | `syncUrl()` and popstate preserve `?lock=` param across navigation | ✅ |
+
+### Notes
+- `hashPassword(pw)` → SHA-256 hex string using browser-native `crypto.subtle` (no library needed)
+- `S.lockHash` stores the expected hash; set on boot from `?lock=` URL param
+- Boot sequence: if `?lock=` + `?folder=` both present → show lock gate instead of browsing; browsing happens only after correct password in `tryUnlock()`
+- Wrong password: `.lock-shake` CSS animation on the card (`@keyframes lockShake`); error message shown; input re-focused
+- Protected URL format: `?folder=<id>&lock=<sha256hex>` — the hash is the password verifier, not the password itself
+- Copy-to-clipboard button in protect modal; toast confirms success
+- `protect-btn` shown in header only when a gallery is open and not in embed mode
+- `syncUrl()` preserves `?lock=<hash>` in URL history entries so back/forward navigation doesn't lose lock state
 
 ---
 
