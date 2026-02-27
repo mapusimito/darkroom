@@ -9,6 +9,16 @@
   const LS_KEY     = 'darkroom_api_key';
   const LS_FAVS    = 'darkroom_favs';
 
+  /* ─────────────────────────────────────────
+     URL SYNC STATE (M6)
+  ───────────────────────────────────────── */
+  let _nextSyncPush  = false; // next syncUrl() call should pushState
+  let _skipNextSync  = false; // next syncUrl() call should replaceState (overrides push)
+  let _pendingFilter = null;  // filter to apply on next applyFilter() (URL restore)
+  let _pendingSort   = null;  // sort to apply on next applyFilter()
+  let _pendingSearch = null;  // search to apply on next applyFilter()
+  let _pendingItem   = null;  // file ID to open in lightbox after applyFilter()
+
   function getApiKey() {
     // Priority: config.js (gitignored) → localStorage (user-entered via settings)
     return (typeof DARKROOM_CONFIG !== 'undefined' && DARKROOM_CONFIG.apiKey &&
@@ -133,6 +143,8 @@
     // favorites
     favHdrBtn:   el('fav-hdr-btn'),
     favCount:    el('fav-count'),
+    // copy link (M6)
+    copyLinkBtn: el('copy-link-btn'),
     // settings
     settingsBtn: el('settings-btn'),
     settingsMod: el('settings-modal'),
@@ -236,6 +248,38 @@
   }
 
   /* ─────────────────────────────────────────
+     URL SYNC (M6)
+  ───────────────────────────────────────── */
+  function syncUrl() {
+    const folderId = S.stack.at(-1)?.id;
+    if (!folderId) return; // no gallery open — don't touch the URL
+    const p = new URLSearchParams();
+    p.set('folder', folderId);
+    if (S.filter && S.filter !== 'all')  p.set('filter', S.filter);
+    if (S.sort   && S.sort   !== 'name-asc') p.set('sort', S.sort);
+    if (S.search)                         p.set('q',      S.search);
+    if (S.lbIdx >= 0 && S.media[S.lbIdx]) p.set('item', S.media[S.lbIdx].id);
+    const url = location.pathname + '?' + p.toString();
+    const shouldPush = _nextSyncPush && !_skipNextSync;
+    _nextSyncPush = false;
+    _skipNextSync = false;
+    if (shouldPush) history.pushState(null, '', url);
+    else            history.replaceState(null, '', url);
+  }
+
+  function showToast(msg) {
+    const t = document.createElement('div');
+    t.className = 'toast';
+    t.textContent = msg;
+    document.body.appendChild(t);
+    requestAnimationFrame(() => requestAnimationFrame(() => t.classList.add('toast-in')));
+    setTimeout(() => {
+      t.classList.remove('toast-in');
+      t.addEventListener('transitionend', () => t.remove(), { once: true });
+    }, 2200);
+  }
+
+  /* ─────────────────────────────────────────
      API
   ───────────────────────────────────────── */
   async function apiFetch(folderId, pageToken) {
@@ -272,6 +316,7 @@
 
     D.landing.classList.add('hidden');
     D.gallery.classList.remove('hidden');
+    D.copyLinkBtn.classList.remove('hidden'); // M6: show copy link btn when gallery opens
     D.search.value = ''; S.search = ''; S.filter = 'all';
     document.querySelectorAll('.ftab').forEach(t => t.classList.toggle('active', t.dataset.filter==='all'));
     D.loadWrap.classList.add('hidden'); D.stats.innerHTML = '';
@@ -281,8 +326,10 @@
       if (!folderName) folderName = await apiFolderName(folderId);
 
       const existing = S.stack.findIndex(f => f.id === folderId);
+      const isNewFolder = existing < 0; // drilling into new subfolder → pushState
       if (existing >= 0) S.stack = S.stack.slice(0, existing + 1);
       else               S.stack.push({ id: folderId, name: folderName });
+      if (isNewFolder) _nextSyncPush = true; // M6: push history for subfolder drill-down
       renderCrumb();
 
       let data = await apiFetch(folderId);
@@ -371,6 +418,23 @@
      FILTER / SORT
   ───────────────────────────────────────── */
   function applyFilter() {
+    // M6: Restore pending state from URL (set by boot or popstate handler)
+    if (_pendingFilter !== null) {
+      S.filter = _pendingFilter;
+      document.querySelectorAll('.ftab').forEach(t => t.classList.toggle('active', t.dataset.filter === _pendingFilter));
+      _pendingFilter = null;
+    }
+    if (_pendingSort !== null) {
+      S.sort = _pendingSort;
+      D.sort.value = _pendingSort;
+      _pendingSort = null;
+    }
+    if (_pendingSearch !== null) {
+      S.search = _pendingSearch;
+      D.search.value = _pendingSearch;
+      _pendingSearch = null;
+    }
+
     let list = [...S.files];
     if (S.filter === 'favorites')   list = list.filter(f => isFav(f.id));
     else if (S.filter !== 'all')    list = list.filter(f => fileType(f.mimeType) === S.filter);
@@ -399,6 +463,15 @@
     D.count.textContent = list.length === 0 ? 'No files' : `${list.length} file${list.length!==1?'s':''}`;
     // Show/hide slideshow button based on whether media is available
     D.ssBtn.classList.toggle('hidden', S.media.length === 0);
+    // M6: Sync URL state
+    syncUrl();
+    // M6: Restore pending lightbox item from URL (boot / popstate)
+    if (_pendingItem) {
+      const mid = _pendingItem;
+      _pendingItem = null;
+      const midx = S.media.findIndex(f => f.id === mid);
+      if (midx >= 0) openLb(midx);
+    }
   }
 
   /* ─────────────────────────────────────────
@@ -697,6 +770,7 @@
     paintLb();
     D.lb.classList.remove('hidden');
     document.body.style.overflow = 'hidden';
+    syncUrl(); // M6: add ?item= param to URL
   }
 
   function closeLb() {
@@ -704,6 +778,7 @@
     document.body.style.overflow = '';
     D.lbBody.innerHTML = '';
     S.lbIdx = -1;
+    syncUrl(); // M6: remove ?item= param from URL
   }
 
   function paintLb() {
@@ -1202,8 +1277,37 @@
     if (Math.abs(dx) > 50) lbNav(dx < 0 ? 1 : -1);
   });
 
-  // URL param boot
-  const qp = new URLSearchParams(window.location.search).get('folder');
-  if (qp) { D.input.value = qp; S.stack = []; browse(qp); }
+  /* ─── Copy gallery link (M6) ───────────── */
+  D.copyLinkBtn.addEventListener('click', () => {
+    navigator.clipboard.writeText(location.href).then(
+      () => showToast('Link copied to clipboard'),
+      () => showToast('Could not copy — try manually'),
+    );
+  });
+
+  /* ─── Browser back/forward (M6) ────────── */
+  window.addEventListener('popstate', () => {
+    const p = new URLSearchParams(location.search);
+    const folderId = p.get('folder');
+    if (!folderId) return;
+    _skipNextSync  = true; // next syncUrl() will replaceState, not push
+    _pendingFilter = p.get('filter') || 'all';
+    _pendingSort   = p.get('sort')   || 'name-asc';
+    _pendingSearch = p.get('q')      || '';
+    _pendingItem   = p.get('item');
+    S.stack = [];
+    browse(folderId);
+  });
+
+  /* ─── URL param boot (M6) ───────────────── */
+  {
+    const bp = new URLSearchParams(location.search);
+    const bootFolder = bp.get('folder');
+    if (bp.get('filter')) _pendingFilter = bp.get('filter');
+    if (bp.get('sort'))   _pendingSort   = bp.get('sort');
+    if (bp.get('q'))      _pendingSearch = bp.get('q');
+    _pendingItem = bp.get('item');
+    if (bootFolder) { D.input.value = bootFolder; S.stack = []; browse(bootFolder); }
+  }
 
 })();

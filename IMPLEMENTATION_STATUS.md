@@ -1,7 +1,7 @@
 # Darkroom — Implementation Status
 
-> **Last Updated**: 2026-02-26
-> **Current Milestone**: 5 ✅ Complete — Next planned: 6, 7, 8
+> **Last Updated**: 2026-02-27
+> **Current Milestone**: 6 ✅ Complete — Next planned: 7, 8, 9
 > **Project**: Darkroom — Drive Media Manager
 > **Vision**: Browse Your Media, Developed. Paste a Google Drive folder link → instant cinematic gallery.
 
@@ -27,7 +27,7 @@
 | 3 | Favorites & Shortlist | 4 | ✅ 100% | 2026-02-26 |
 | 4 | Multi-file ZIP Download | 4 | ✅ 100% | 2026-02-26 |
 | 5 | Date Auto-Grouping | 5 | ✅ 100% | 2026-02-26 |
-| 6 | URL Sharing & Deep Links | 4 | ⬜ 0% | — |
+| 6 | URL Sharing & Deep Links | 4 | ✅ 100% | 2026-02-27 |
 | 7 | Private Folder OAuth | 6 | ⬜ 0% | — |
 | 8 | AI Tagging (On-Device) | 7 | ⬜ 0% | — |
 | 9 | Embeddable Gallery Widget | 5 | ⬜ 0% | — |
@@ -186,24 +186,32 @@ All DOM ID references between `index.html` and `script.js` verified — no misma
 
 ---
 
-## Milestone 6 — URL Sharing & Deep Links ⬜
+## Milestone 6 — URL Sharing & Deep Links ✅
 
 > **Goal**: Every gallery state (folder, filters, open lightbox item) should be shareable as a URL.
-> **Status**: Not Started
+> **Status**: Complete
+> **Completed**: 2026-02-27
 
 ### Tasks
 
 | # | Task | Status |
 |---|------|--------|
-| 6.1 | Sync folder ID to URL param `?folder=<id>` on navigate | ⬜ |
-| 6.2 | Sync filter/sort state to URL params | ⬜ |
-| 6.3 | Sync open lightbox item to URL param `?item=<id>` | ⬜ |
-| 6.4 | "Copy gallery link" button in header | ⬜ |
+| 6.1 | Sync folder ID to URL param `?folder=<id>` on navigate | ✅ |
+| 6.2 | Sync filter/sort state to URL params | ✅ |
+| 6.3 | Sync open lightbox item to URL param `?item=<id>` | ✅ |
+| 6.4 | "Copy gallery link" button in header | ✅ |
 
 ### Notes
-- Use `history.replaceState` (not pushState) to avoid polluting back stack on filter changes
-- Use `history.pushState` on folder navigation (subfolder drill-down)
-- Gallery link button should copy the current URL to clipboard with a toast confirmation
+- `syncUrl()` — single function reads `S.stack`, `S.filter`, `S.sort`, `S.search`, `S.lbIdx` and calls `replaceState` or `pushState`
+- `_nextSyncPush` flag: set `true` in `browse()` when drilling into a new subfolder; consumed once by `syncUrl()`
+- `_skipNextSync` flag: set `true` in `popstate` handler to force replaceState even if `_nextSyncPush` is true
+- URL params: `?folder=<id>` (always) + optional `&filter=<f>&sort=<s>&q=<search>&item=<id>`
+- `applyFilter()` calls `syncUrl()` at end — covers filter/sort/search changes automatically
+- `openLb()` / `closeLb()` both call `syncUrl()` to add/remove `?item=` param
+- Boot: reads all params from URL, sets `_pending*` variables consumed by `applyFilter()` on first render
+- `popstate` handler: restores full state from URL + triggers `browse()` for back/forward navigation
+- "Copy link" button (🔗 icon): visible when gallery is open; copies `location.href` with `navigator.clipboard`; toast confirms success/failure
+- Copy link button CSS: `.copy-link-btn` — same size as settings-btn, accent highlight on hover
 
 ---
 

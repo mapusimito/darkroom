@@ -873,6 +873,33 @@ body.select-mode .card-folder .card-check { display: none; }
 .fav-hdr-btn:hover { background: rgba(232,67,147,.22); border-color: rgba(232,67,147,.55); }
 
 /* ===========================
+   COPY LINK BUTTON (M6)
+=========================== */
+.copy-link-btn {
+  background: transparent; border: 1px solid var(--border);
+  border-radius: var(--r); width: 36px; height: 36px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--txt-muted); cursor: pointer; transition: all .2s;
+  flex-shrink: 0;
+  backdrop-filter: blur(8px);
+}
+.copy-link-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+
+/* Toast notification (M6) */
+.toast {
+  position: fixed; bottom: 28px; left: 50%;
+  transform: translateX(-50%) translateY(10px);
+  background: var(--glass-bg); border: 1px solid var(--glass-border);
+  backdrop-filter: blur(16px);
+  color: var(--txt); font-family: var(--ff-mono); font-size: .73rem;
+  letter-spacing: .05em; padding: 8px 20px;
+  border-radius: var(--rPill); box-shadow: var(--shadow-md);
+  opacity: 0; transition: opacity .22s ease, transform .22s ease;
+  z-index: 8000; pointer-events: none; white-space: nowrap;
+}
+.toast.toast-in { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ===========================
    SETTINGS BUTTON
 =========================== */
 .settings-btn {
