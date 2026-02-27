@@ -1,7 +1,7 @@
 # Darkroom — Implementation Status
 
 > **Last Updated**: 2026-02-27
-> **Current Milestone**: 6 ✅ Complete — Next planned: 7, 8, 9
+> **Current Milestone**: 7 ✅ Complete — Next planned: 8, 9, 10
 > **Project**: Darkroom — Drive Media Manager
 > **Vision**: Browse Your Media, Developed. Paste a Google Drive folder link → instant cinematic gallery.
 
@@ -28,7 +28,7 @@
 | 4 | Multi-file ZIP Download | 4 | ✅ 100% | 2026-02-26 |
 | 5 | Date Auto-Grouping | 5 | ✅ 100% | 2026-02-26 |
 | 6 | URL Sharing & Deep Links | 4 | ✅ 100% | 2026-02-27 |
-| 7 | Private Folder OAuth | 6 | ⬜ 0% | — |
+| 7 | Private Folder OAuth | 6 | ✅ 100% | 2026-02-27 |
 | 8 | AI Tagging (On-Device) | 7 | ⬜ 0% | — |
 | 9 | Embeddable Gallery Widget | 5 | ⬜ 0% | — |
 | 10 | Timeline View | 6 | ⬜ 0% | — |
@@ -215,27 +215,34 @@ All DOM ID references between `index.html` and `script.js` verified — no misma
 
 ---
 
-## Milestone 7 — Private Folder OAuth ⬜
+## Milestone 7 — Private Folder OAuth ✅
 
 > **Goal**: Allow users to browse their own private Drive folders securely via Google OAuth — without making anything public.
-> **Status**: Not Started
+> **Status**: Complete
+> **Completed**: 2026-02-27
 
 ### Tasks
 
 | # | Task | Status |
 |---|------|--------|
-| 7.1 | Google OAuth 2.0 implicit flow with Drive readonly scope | ⬜ |
-| 7.2 | "Sign in with Google" button in header | ⬜ |
-| 7.3 | Token storage and refresh handling | ⬜ |
-| 7.4 | Switch API calls to use Bearer token instead of API key | ⬜ |
-| 7.5 | "My Drive" folder tree sidebar for authenticated users | ⬜ |
-| 7.6 | Sign-out and token revocation | ⬜ |
+| 7.1 | Google OAuth 2.0 token client via Google Identity Services (GIS) | ✅ |
+| 7.2 | "Sign in" button in header + user profile pill (name/avatar) | ✅ |
+| 7.3 | Token stored in `sessionStorage` with expiry; restored on boot | ✅ |
+| 7.4 | API calls use `Authorization: Bearer <token>` when signed in (no API key needed) | ✅ |
+| 7.5 | "My Drive" sidebar — root-level folders, clicking browses to that folder | ✅ |
+| 7.6 | Sign-out with `google.accounts.oauth2.revoke()` + token/session cleared | ✅ |
 
 ### Notes
-- Use Google Identity Services (GIS) library — not the legacy gapi auth
-- Scope: `https://www.googleapis.com/auth/drive.readonly`
-- Public folders still work without sign-in (API key path remains)
-- Private mode is opt-in — don't force auth on load
+- GIS library (`accounts.google.com/gsi/client`) is lazy-loaded on first "Sign in" click — no impact for non-OAuth users
+- `initTokenClient` scope: `drive.readonly profile email` (profile/email for showing user name in pill)
+- `_tokenClient` initialized via `initGIS()` after GIS script loads; re-initialized if client ID changes
+- `authHeaders()` returns `{ Authorization: Bearer }` when signed in, `{}` otherwise; API key param added only when not signed in
+- 401 response clears auth state gracefully via `handleTokenExpiry()`
+- `tryRestoreAuth()` runs at boot — restores session from `sessionStorage` if token has >1 min remaining
+- My Drive sidebar: fixed left panel (hidden below 1280px), lazy-loads root folders after sign-in
+- OAuth client ID stored in `localStorage` as `darkroom_client_id`; also supports `DARKROOM_CONFIG.clientId` in config.js
+- Settings modal now has two sections: API Key (existing) + Private Folders (new OAuth section)
+- Public folder browsing via API key still fully supported — OAuth is opt-in
 
 ---
 

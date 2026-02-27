@@ -873,6 +873,91 @@ body.select-mode .card-folder .card-check { display: none; }
 .fav-hdr-btn:hover { background: rgba(232,67,147,.22); border-color: rgba(232,67,147,.55); }
 
 /* ===========================
+   SIGN IN / USER PILL (M7)
+=========================== */
+.sign-in-btn {
+  display: flex; align-items: center; gap: 6px;
+  background: rgba(66,133,244,.1); border: 1px solid rgba(66,133,244,.28);
+  border-radius: 20px; padding: 5px 12px 5px 9px;
+  color: #4a9cf6; font-family: var(--ff-mono); font-size: .72rem; font-weight: 600;
+  cursor: pointer; transition: background .18s, border-color .18s;
+  flex-shrink: 0; white-space: nowrap;
+}
+.sign-in-btn:hover { background: rgba(66,133,244,.2); border-color: rgba(66,133,244,.5); }
+
+.user-pill {
+  display: flex; align-items: center; gap: 7px;
+  background: rgba(80,200,120,.08); border: 1px solid rgba(80,200,120,.22);
+  border-radius: 20px; padding: 4px 8px 4px 4px;
+  flex-shrink: 0;
+}
+.user-avatar {
+  width: 24px; height: 24px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--amber) 100%);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--ff-ui); font-size: .68rem; font-weight: 700;
+  color: white; flex-shrink: 0; user-select: none;
+}
+.user-name {
+  font-family: var(--ff-mono); font-size: .72rem; color: #50c878;
+  max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.user-signout {
+  background: transparent; border: none; padding: 2px;
+  color: var(--txt-muted); cursor: pointer; transition: color .15s;
+  display: flex; align-items: center; border-radius: 50%;
+}
+.user-signout:hover { color: var(--b-pdf); }
+
+/* ===========================
+   MY DRIVE SIDEBAR (M7)
+=========================== */
+.drive-sidebar {
+  position: fixed; left: 16px; top: 50%;
+  transform: translateY(-50%);
+  z-index: 150;
+  width: 188px; max-height: calc(100vh - 120px);
+  background: var(--glass-bg); border: 1px solid var(--glass-border);
+  border-radius: var(--rL); box-shadow: var(--shadow-md);
+  backdrop-filter: blur(16px);
+  overflow: hidden; display: flex; flex-direction: column;
+}
+.drive-sidebar-hdr {
+  display: flex; align-items: center; gap: 7px;
+  padding: 10px 12px 8px;
+  font-family: var(--ff-mono); font-size: .64rem; font-weight: 700;
+  color: var(--txt-muted); letter-spacing: .12em; text-transform: uppercase;
+  border-bottom: 1px solid var(--glass-border); flex-shrink: 0;
+}
+.drive-sidebar-hdr svg { color: var(--b-fold); }
+.drive-folders { overflow-y: auto; flex: 1; padding: 4px 0; }
+.drive-folder-item {
+  display: flex; align-items: center; gap: 7px;
+  width: 100%; padding: 6px 12px;
+  background: transparent; border: none; text-align: left;
+  color: var(--txt-dim); font-family: var(--ff-mono); font-size: .72rem;
+  cursor: pointer; transition: background .15s, color .15s;
+  overflow: hidden;
+}
+.drive-folder-item:hover { background: var(--card-hov); color: var(--txt); }
+.drive-folder-item svg { flex-shrink: 0; color: var(--b-fold); }
+.drive-folder-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.drive-loading, .drive-empty {
+  padding: 14px 12px; font-family: var(--ff-mono); font-size: .7rem;
+  color: var(--txt-muted); text-align: center;
+}
+@media (max-width: 1280px) { .drive-sidebar { display: none !important; } }
+
+/* Settings modal extras (M7) */
+.settings-sep {
+  height: 1px; background: var(--border); margin: 2px 0;
+}
+.settings-subtitle {
+  font-family: var(--ff-mono); font-size: .68rem; font-weight: 700;
+  color: var(--txt-dim); letter-spacing: .1em; text-transform: uppercase;
+}
+
+/* ===========================
    COPY LINK BUTTON (M6)
 =========================== */
 .copy-link-btn {

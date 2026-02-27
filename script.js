@@ -6,8 +6,10 @@
   ───────────────────────────────────────── */
   const API_BASE   = 'https://www.googleapis.com/drive/v3/files';
   const PG_SIZE    = 100;
-  const LS_KEY     = 'darkroom_api_key';
-  const LS_FAVS    = 'darkroom_favs';
+  const LS_KEY       = 'darkroom_api_key';
+  const LS_FAVS      = 'darkroom_favs';
+  const LS_CLIENT_ID = 'darkroom_client_id';
+  const SS_TOKEN_KEY = 'darkroom_oauth';
 
   /* ─────────────────────────────────────────
      URL SYNC STATE (M6)
@@ -18,6 +20,13 @@
   let _pendingSort   = null;  // sort to apply on next applyFilter()
   let _pendingSearch = null;  // search to apply on next applyFilter()
   let _pendingItem   = null;  // file ID to open in lightbox after applyFilter()
+
+  /* ─────────────────────────────────────────
+     OAUTH STATE (M7)
+  ───────────────────────────────────────── */
+  let _oauthToken  = null;  // current access token
+  let _oauthExpiry = 0;     // expiry timestamp (ms)
+  let _tokenClient = null;  // GIS token client instance
 
   function getApiKey() {
     // Priority: config.js (gitignored) → localStorage (user-entered via settings)
@@ -34,6 +43,23 @@
 
   function hasApiKey() {
     return getApiKey().length > 10;
+  }
+
+  /* ─────────────────────────────────────────
+     OAUTH HELPERS (M7)
+  ───────────────────────────────────────── */
+  function getClientId() {
+    return (typeof DARKROOM_CONFIG !== 'undefined' && DARKROOM_CONFIG.clientId) ||
+           localStorage.getItem(LS_CLIENT_ID) || '';
+  }
+
+  function saveClientId(id) { localStorage.setItem(LS_CLIENT_ID, id.trim()); }
+
+  function isSignedIn() { return !!_oauthToken && Date.now() < _oauthExpiry; }
+
+  // Build fetch headers: Bearer token when signed in, else nothing (key goes in URL param)
+  function authHeaders() {
+    return isSignedIn() ? { Authorization: `Bearer ${_oauthToken}` } : {};
   }
 
   /* ─────────────────────────────────────────
@@ -145,6 +171,17 @@
     favCount:    el('fav-count'),
     // copy link (M6)
     copyLinkBtn: el('copy-link-btn'),
+    // sign in / user (M7)
+    signInBtn:     el('sign-in-btn'),
+    userPill:      el('user-pill'),
+    userAvatar:    el('user-avatar'),
+    userName:      el('user-name'),
+    signOutBtn:    el('sign-out-btn'),
+    driveSidebar:  el('drive-sidebar'),
+    driveFolders:  el('drive-folders'),
+    clientIdInput: el('client-id-input'),
+    clientIdSave:  el('client-id-save'),
+    clientIdClear: el('client-id-clear'),
     // settings
     settingsBtn: el('settings-btn'),
     settingsMod: el('settings-modal'),
@@ -280,28 +317,199 @@
   }
 
   /* ─────────────────────────────────────────
+     OAUTH FLOW (M7)
+  ───────────────────────────────────────── */
+  function loadGISScript() {
+    return new Promise((resolve, reject) => {
+      if (window.google?.accounts?.oauth2) { resolve(); return; }
+      const s = document.createElement('script');
+      s.src = 'https://accounts.google.com/gsi/client';
+      s.onload  = resolve;
+      s.onerror = () => reject(new Error('Failed to load Google Identity Services'));
+      document.head.appendChild(s);
+    });
+  }
+
+  function initGIS() {
+    const clientId = getClientId();
+    if (!clientId || !window.google?.accounts?.oauth2) return false;
+    try {
+      _tokenClient = window.google.accounts.oauth2.initTokenClient({
+        client_id: clientId,
+        scope: 'https://www.googleapis.com/auth/drive.readonly profile email',
+        callback: onTokenResponse,
+      });
+      return true;
+    } catch { return false; }
+  }
+
+  async function signIn() {
+    const clientId = getClientId();
+    if (!clientId) {
+      showToast('Enter a Client ID in Settings first');
+      openSettings();
+      return;
+    }
+    try {
+      await loadGISScript();
+    } catch {
+      showToast('Could not load Google auth library');
+      return;
+    }
+    if (!initGIS()) {
+      showToast('OAuth init failed — check Client ID in Settings');
+      return;
+    }
+    _tokenClient.requestAccessToken({ prompt: '' });
+  }
+
+  async function onTokenResponse(resp) {
+    if (resp.error) {
+      showToast('Sign-in failed: ' + resp.error);
+      return;
+    }
+    _oauthToken  = resp.access_token;
+    _oauthExpiry = Date.now() + (resp.expires_in * 1000);
+
+    // Fetch user profile
+    let userInfo = { name: '', email: '' };
+    try {
+      const r = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+        headers: { Authorization: `Bearer ${_oauthToken}` },
+      });
+      if (r.ok) userInfo = await r.json();
+    } catch { /* profile fetch is best-effort */ }
+
+    // Persist token in sessionStorage (cleared when tab closes)
+    try {
+      sessionStorage.setItem(SS_TOKEN_KEY, JSON.stringify({
+        token:  _oauthToken,
+        expiry: _oauthExpiry,
+        name:   userInfo.name  || '',
+        email:  userInfo.email || '',
+      }));
+    } catch { /* storage may be full or blocked */ }
+
+    updateSignInUI(true, userInfo);
+    loadMyDriveFolders();
+    showToast(`Signed in as ${userInfo.name || userInfo.email || 'Google account'}`);
+  }
+
+  function signOut() {
+    if (_oauthToken && window.google?.accounts?.oauth2) {
+      try { window.google.accounts.oauth2.revoke(_oauthToken, () => {}); } catch {}
+    }
+    _oauthToken  = null;
+    _oauthExpiry = 0;
+    try { sessionStorage.removeItem(SS_TOKEN_KEY); } catch {}
+    updateSignInUI(false);
+    D.driveSidebar.classList.add('hidden');
+    D.driveFolders.innerHTML = '';
+    showToast('Signed out');
+  }
+
+  function handleTokenExpiry() {
+    // Called on 401 — token expired; reset auth state silently
+    _oauthToken  = null;
+    _oauthExpiry = 0;
+    try { sessionStorage.removeItem(SS_TOKEN_KEY); } catch {}
+    updateSignInUI(false);
+    D.driveSidebar.classList.add('hidden');
+    D.driveFolders.innerHTML = '';
+    showToast('Session expired — please sign in again');
+  }
+
+  function updateSignInUI(signedIn, userInfo = {}) {
+    D.signInBtn.classList.toggle('hidden', signedIn);
+    D.userPill.classList.toggle('hidden', !signedIn);
+    if (signedIn) {
+      const display = userInfo.name || userInfo.email || '';
+      D.userAvatar.textContent = display ? display[0].toUpperCase() : '?';
+      D.userName.textContent   = (userInfo.name || userInfo.email || 'User').split(' ')[0];
+    }
+  }
+
+  async function loadMyDriveFolders() {
+    if (!isSignedIn()) return;
+    D.driveSidebar.classList.remove('hidden');
+    D.driveFolders.innerHTML = '<div class="drive-loading">Loading…</div>';
+    try {
+      const p = new URLSearchParams({
+        q:       `'root' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+        fields:  'files(id,name)',
+        orderBy: 'name',
+        pageSize: 50,
+      });
+      const r = await fetch(`${API_BASE}?${p}`, { headers: authHeaders() });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const { files = [] } = await r.json();
+      renderDriveSidebar(files);
+    } catch {
+      D.driveFolders.innerHTML = '<div class="drive-empty">Could not load folders</div>';
+    }
+  }
+
+  function renderDriveSidebar(folders) {
+    if (!folders.length) {
+      D.driveFolders.innerHTML = '<div class="drive-empty">No folders in My Drive</div>';
+      return;
+    }
+    D.driveFolders.innerHTML = folders.map(f =>
+      `<button class="drive-folder-item" data-id="${esc(f.id)}" data-name="${esc(f.name)}">
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24"
+             fill="none" stroke="currentColor" stroke-width="1.5"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+        </svg>
+        <span title="${esc(f.name)}">${esc(f.name)}</span>
+      </button>`
+    ).join('');
+    D.driveFolders.querySelectorAll('.drive-folder-item').forEach(btn => {
+      btn.addEventListener('click', () => browse(btn.dataset.id, btn.dataset.name));
+    });
+  }
+
+  function tryRestoreAuth() {
+    try {
+      const stored = sessionStorage.getItem(SS_TOKEN_KEY);
+      if (!stored) return;
+      const { token, expiry, name, email } = JSON.parse(stored);
+      if (expiry > Date.now() + 60_000) { // need at least 1 min remaining
+        _oauthToken  = token;
+        _oauthExpiry = expiry;
+        updateSignInUI(true, { name, email });
+        loadMyDriveFolders();
+      } else {
+        sessionStorage.removeItem(SS_TOKEN_KEY);
+      }
+    } catch { /* session storage may be blocked */ }
+  }
+
+  /* ─────────────────────────────────────────
      API
   ───────────────────────────────────────── */
   async function apiFetch(folderId, pageToken) {
     const p = new URLSearchParams({
-      key: getApiKey(),
       q: `'${folderId}' in parents and trashed=false`,
       fields: 'files(id,name,mimeType,size,modifiedTime,thumbnailLink,webViewLink,webContentLink),nextPageToken',
       pageSize: PG_SIZE,
       orderBy: 'folder,name',
     });
+    if (!isSignedIn()) p.set('key', getApiKey()); // M7: use API key only when not signed in
     if (pageToken) p.set('pageToken', pageToken);
-    const r = await fetch(`${API_BASE}?${p}`);
+    const r = await fetch(`${API_BASE}?${p}`, { headers: authHeaders() });
     if (!r.ok) {
       const e = await r.json().catch(()=>({}));
+      if (r.status === 401 && isSignedIn()) handleTokenExpiry(); // M7: clear expired token
       throw new Error(e?.error?.message || `HTTP ${r.status}`);
     }
     return r.json();
   }
 
   async function apiFolderName(id) {
-    const p = new URLSearchParams({ key: getApiKey(), fields: 'name' });
-    const r = await fetch(`${API_BASE}/${id}?${p}`);
+    const p = new URLSearchParams({ fields: 'name' });
+    if (!isSignedIn()) p.set('key', getApiKey()); // M7: use API key only when not signed in
+    const r = await fetch(`${API_BASE}/${id}?${p}`, { headers: authHeaders() });
     if (!r.ok) return 'Folder';
     return (await r.json()).name || 'Folder';
   }
@@ -1143,7 +1351,8 @@
 
   function openSettings() {
     D.settingsMod.classList.remove('hidden');
-    D.apiKeyInput.value = localStorage.getItem(LS_KEY) || '';
+    D.apiKeyInput.value   = localStorage.getItem(LS_KEY) || '';
+    D.clientIdInput.value = localStorage.getItem(LS_CLIENT_ID) || ''; // M7
     D.apiKeyInput.focus();
     document.body.style.overflow = 'hidden';
   }
@@ -1178,6 +1387,31 @@
 
   // Initialize dot on load
   updateKeyDot();
+
+  /* ─── OAuth (M7) ────────────────────────── */
+  D.signInBtn.addEventListener('click', signIn);
+  D.signOutBtn.addEventListener('click', signOut);
+
+  D.clientIdSave.addEventListener('click', () => {
+    const val = D.clientIdInput.value.trim();
+    if (!val) return;
+    saveClientId(val);
+    closeSettings();
+    showToast('Client ID saved');
+  });
+
+  D.clientIdInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') D.clientIdSave.click();
+  });
+
+  D.clientIdClear.addEventListener('click', () => {
+    localStorage.removeItem(LS_CLIENT_ID);
+    D.clientIdInput.value = '';
+    showToast('Client ID cleared');
+  });
+
+  // Try to restore previous session on load
+  tryRestoreAuth();
 
   /* ─── Selection bar (M4) ───────────────── */
   D.selModeBtn.addEventListener('click', () => {
@@ -1217,7 +1451,7 @@
 
   D.form.addEventListener('submit', e => {
     e.preventDefault();
-    if (!hasApiKey()) {
+    if (!hasApiKey() && !isSignedIn()) { // M7: OAuth users don't need API key
       openSettings();
       return;
     }

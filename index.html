@@ -33,6 +33,29 @@
     <span id="fav-count">0</span>
   </button>
 
+  <!-- Sign in / user profile (M7) -->
+  <button class="sign-in-btn" id="sign-in-btn" aria-label="Sign in with Google" title="Sign in with Google to browse private folders">
+    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24"
+         fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round">
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+      <circle cx="12" cy="7" r="4"/>
+    </svg>
+    Sign in
+  </button>
+
+  <div class="user-pill hidden" id="user-pill">
+    <div class="user-avatar" id="user-avatar">U</div>
+    <span class="user-name" id="user-name"></span>
+    <button class="user-signout" id="sign-out-btn" aria-label="Sign out" title="Sign out">
+      <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24"
+           fill="none" stroke="currentColor" stroke-width="2.5"
+           stroke-linecap="round" stroke-linejoin="round">
+        <path d="M18 6 6 18M6 6l12 12"/>
+      </svg>
+    </button>
+  </div>
+
   <button class="copy-link-btn hidden" id="copy-link-btn" aria-label="Copy gallery link" title="Copy gallery link">
     <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24"
          fill="none" stroke="currentColor" stroke-width="2"
@@ -221,6 +244,25 @@
       <button class="api-key-save" id="api-key-save">Save</button>
     </div>
     <button class="api-key-clear" id="api-key-clear">Clear saved key</button>
+
+    <!-- OAuth section (M7) -->
+    <div class="settings-sep"></div>
+    <div class="settings-subtitle">Private Folders</div>
+    <p class="settings-desc">
+      Sign in with Google to browse folders that aren't publicly shared.
+      Requires an OAuth 2.0 Client ID from your Google Cloud project.
+    </p>
+    <div class="settings-steps">
+      <span>1. Go to <a href="https://console.cloud.google.com/" target="_blank" rel="noopener noreferrer">Google Cloud Console</a></span>
+      <span>2. Credentials → <strong>Create OAuth 2.0 Client ID</strong> (Web application)</span>
+      <span>3. Add your origin to <strong>Authorized JavaScript origins</strong></span>
+    </div>
+    <div class="settings-field">
+      <input class="api-key-input" id="client-id-input" type="text"
+             placeholder="*.apps.googleusercontent.com" autocomplete="off" spellcheck="false">
+      <button class="api-key-save" id="client-id-save">Save</button>
+    </div>
+    <button class="api-key-clear" id="client-id-clear">Clear Client ID</button>
   </div>
 </div>
 
@@ -292,6 +334,19 @@
       <path d="M18 6 6 18M6 6l12 12"/>
     </svg>
   </button>
+</div>
+
+<!-- MY DRIVE SIDEBAR (M7) -->
+<div class="drive-sidebar hidden" id="drive-sidebar" role="navigation" aria-label="My Drive folders">
+  <div class="drive-sidebar-hdr">
+    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24"
+         fill="none" stroke="currentColor" stroke-width="1.5"
+         stroke-linecap="round" stroke-linejoin="round">
+      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+    </svg>
+    <span>My Drive</span>
+  </div>
+  <div id="drive-folders" class="drive-folders"></div>
 </div>
 
 <!-- DATE NAV SIDEBAR (M5) -->
