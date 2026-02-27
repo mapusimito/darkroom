@@ -359,12 +359,12 @@
     const flds = f.filter(x => fileType(x.mimeType) === 'folder').length;
     const tot  = f.reduce((s,x) => s + (+x.size||0), 0);
     D.stats.innerHTML = [
-      [f.length,       'Total files'],
-      [img,            'Images'],
-      [vid,            'Videos'],
-      [flds,           'Folders'],
-      ...(tot > 0 ? [[fmtSize(tot), 'Total size']] : []),
-    ].map(([v,l]) => `<div class="stat-item"><div class="stat-val">${v}</div><div class="stat-lbl">${l}</div></div>`).join('');
+      [f.length,       'Total files',  'total'],
+      [img,            'Images',       'images'],
+      [vid,            'Videos',       'videos'],
+      [flds,           'Folders',      'folders'],
+      ...(tot > 0 ? [[fmtSize(tot), 'Total size', 'size']] : []),
+    ].map(([v,l,t]) => `<div class="stat-item" data-type="${t}"><div class="stat-val">${v}</div><div class="stat-lbl">${l}</div></div>`).join('');
   }
 
   /* ─────────────────────────────────────────
@@ -405,10 +405,9 @@
      GRID RENDER
   ───────────────────────────────────────── */
   function showSkeletons(n) {
+    D.grid.classList.remove('grid-timeline');
     D.grid.innerHTML = Array.from({length:n}, () =>
-      `<div class="skel"><div class="skel-thumb"></div>
-       <div class="skel-body"><div class="skel-line" style="width:82%"></div>
-       <div class="skel-line" style="width:55%"></div></div></div>`
+      `<div class="skel"><div class="skel-thumb"></div></div>`
     ).join('');
   }
 
@@ -619,6 +618,7 @@
 
   // Render the grid in timeline (grouped by month) mode
   function renderGridGrouped() {
+    D.grid.classList.add('grid-timeline');
     const groups = groupFiles(S.filtered);
     if (!groups.length) {
       D.grid.innerHTML = `<div class="state-msg" style="grid-column:1/-1">
@@ -634,8 +634,10 @@
     let idx  = 0;
     for (const grp of groups) {
       const collapsed = S.collapsedGroups.has(grp.key);
+      const year = grp.key.split('-')[0];
       html += `<div class="date-group-hdr ${collapsed ? 'collapsed' : ''}"
                     data-gkey="${esc(grp.key)}"
+                    data-year="${esc(year)}"
                     id="group-${esc(grp.key)}"
                     role="button" tabindex="0"
                     aria-expanded="${collapsed ? 'false' : 'true'}">
@@ -681,6 +683,7 @@
     }
 
     buildDateNav([]);
+    D.grid.classList.remove('grid-timeline');
     D.grid.innerHTML = S.filtered.map((file, idx) => buildCardHtml(file, idx, '')).join('');
     wireCardEvents();
   }
