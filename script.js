@@ -8,8 +8,13 @@
   const PG_SIZE    = 100;
   const LS_KEY       = 'darkroom_api_key';
   const LS_FAVS      = 'darkroom_favs';
-  const LS_CLIENT_ID = 'darkroom_client_id';
-  const SS_TOKEN_KEY = 'darkroom_oauth';
+  const LS_CLIENT_ID  = 'darkroom_client_id';
+  const SS_TOKEN_KEY  = 'darkroom_oauth';
+  const LS_AI_TAGS    = 'darkroom_ai_tags';
+  const LS_AI_ENABLED = 'darkroom_ai_enabled';
+  const AI_THRESHOLD  = 0.30;  // minimum confidence to include a tag
+  const AI_MAX_PREDS  = 5;     // predictions to request from MobileNet
+  const AI_SHOW_TAGS  = 3;     // max tags shown per card
 
   /* ─────────────────────────────────────────
      URL SYNC STATE (M6)
@@ -27,6 +32,18 @@
   let _oauthToken  = null;  // current access token
   let _oauthExpiry = 0;     // expiry timestamp (ms)
   let _tokenClient = null;  // GIS token client instance
+
+  /* ─────────────────────────────────────────
+     AI TAGGING STATE (M8)
+  ───────────────────────────────────────── */
+  let _aiEnabled = false;  // user opt-in
+  let _aiModel   = null;   // loaded MobileNet instance
+  let _aiLoading = false;  // model currently loading
+  let _aiTags    = {};     // { [fileId]: string[] } — in-memory + persisted
+  let _aiQueue   = [];     // files awaiting classification
+  let _aiRunning = false;  // queue processor active
+  let _aiDone    = 0;      // images processed in current batch
+  let _aiTotal   = 0;      // total images in current batch
 
   function getApiKey() {
     // Priority: config.js (gitignored) → localStorage (user-entered via settings)
@@ -192,6 +209,9 @@
     apiKeyDot:   el('api-key-dot'),
     // date nav (M5)
     dateNav:     el('date-nav'),
+    // AI tagging (M8)
+    aiBtn:       el('ai-btn'),
+    aiStatus:    el('ai-status'),
     // slideshow
     ssBtn:       el('slideshow-btn'),
     ssOverlay:   el('slideshow'),
@@ -314,6 +334,144 @@
       t.classList.remove('toast-in');
       t.addEventListener('transitionend', () => t.remove(), { once: true });
     }, 2200);
+  }
+
+  /* ─────────────────────────────────────────
+     AI TAGGING (M8)
+  ───────────────────────────────────────── */
+  function loadAiTagsFromStorage() {
+    try {
+      const raw = localStorage.getItem(LS_AI_TAGS);
+      _aiTags = raw ? JSON.parse(raw) : {};
+    } catch { _aiTags = {}; }
+  }
+
+  function saveAiTag(fileId, tags) {
+    _aiTags[fileId] = tags;
+    try { localStorage.setItem(LS_AI_TAGS, JSON.stringify(_aiTags)); }
+    catch { /* storage full — keep in memory */ }
+  }
+
+  function loadTFScripts() {
+    return new Promise((resolve, reject) => {
+      if (window.mobilenet) { resolve(); return; }
+      const tf = document.createElement('script');
+      tf.src = 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js';
+      tf.onload = () => {
+        const mn = document.createElement('script');
+        mn.src = 'https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.0/dist/mobilenet.min.js';
+        mn.onload  = resolve;
+        mn.onerror = () => reject(new Error('Failed to load MobileNet'));
+        document.head.appendChild(mn);
+      };
+      tf.onerror = () => reject(new Error('Failed to load TensorFlow.js'));
+      document.head.appendChild(tf);
+    });
+  }
+
+  async function enableAiTagging() {
+    _aiEnabled = true;
+    localStorage.setItem(LS_AI_ENABLED, '1');
+    D.aiBtn.classList.add('active');
+
+    if (!_aiModel && !_aiLoading) {
+      _aiLoading = true;
+      updateAiStatus('Loading AI model…');
+      try {
+        await loadTFScripts();
+        updateAiStatus('Initializing…');
+        _aiModel = await window.mobilenet.load({ version: 2, alpha: 0.5 });
+      } catch {
+        showToast('AI model failed to load — check console');
+        _aiEnabled = false;
+        _aiLoading = false;
+        _aiModel   = null;
+        localStorage.removeItem(LS_AI_ENABLED);
+        D.aiBtn.classList.remove('active');
+        updateAiStatus('');
+        return;
+      }
+      _aiLoading = false;
+      applyFilter(); // re-render to inject .ai-tags placeholders
+    }
+
+    startAiTagging();
+  }
+
+  function disableAiTagging() {
+    _aiEnabled = false;
+    localStorage.removeItem(LS_AI_ENABLED);
+    D.aiBtn.classList.remove('active');
+    _aiQueue = []; // cancel pending work
+    _aiDone  = 0;
+    _aiTotal = 0;
+    updateAiStatus('');
+    applyFilter(); // re-render without tag placeholders
+  }
+
+  function startAiTagging() {
+    if (!_aiEnabled || !_aiModel) return;
+    // Build queue from untagged images in current view
+    _aiQueue = S.media.filter(f => f.thumbnailLink && !(_aiTags[f.id]?.length >= 0));
+    // More precisely: only files not yet attempted (no entry in _aiTags)
+    _aiQueue = S.media.filter(f => f.thumbnailLink && !(_aiTags.hasOwnProperty(f.id)));
+    _aiDone  = 0;
+    _aiTotal = _aiQueue.length;
+    if (_aiTotal === 0) { updateAiStatus(''); return; }
+    if (!_aiRunning) processAiQueue();
+  }
+
+  async function processAiQueue() {
+    if (_aiRunning) return;
+    _aiRunning = true;
+    while (_aiQueue.length > 0 && _aiEnabled) {
+      const file = _aiQueue.shift();
+      try {
+        const tags = await classifyImage(file);
+        saveAiTag(file.id, tags); // save even if empty (marks as "attempted")
+        if (tags.length) paintAiTags(file.id, tags);
+      } catch { saveAiTag(file.id, []); } // mark as attempted on error
+      _aiDone++;
+      updateAiStatus(`AI: ${_aiDone}/${_aiTotal}`);
+    }
+    _aiRunning = false;
+    updateAiStatus('');
+    if (_aiEnabled && _aiTotal > 0) showToast(`AI tagged ${_aiDone} image${_aiDone !== 1 ? 's' : ''}`);
+    _aiDone  = 0;
+    _aiTotal = 0;
+  }
+
+  async function classifyImage(file) {
+    const url = file.thumbnailLink.replace(/=s\d+$/, '=w400');
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous'; // must be set BEFORE src
+      img.onload = async () => {
+        try {
+          const preds = await _aiModel.classify(img, AI_MAX_PREDS);
+          const tags  = preds
+            .filter(p => p.probability >= AI_THRESHOLD)
+            .map(p => p.className.split(',')[0].toLowerCase().trim());
+          resolve(tags);
+        } catch { resolve([]); }
+      };
+      img.onerror = () => resolve([]); // CORS or 404 — skip silently
+      img.src = url;
+    });
+  }
+
+  function paintAiTags(fileId, tags) {
+    const card   = D.grid.querySelector(`.card[data-id="${fileId}"]`);
+    const tagsEl = card?.querySelector('.ai-tags');
+    if (!tagsEl || !tags.length) return;
+    tagsEl.innerHTML = tags.slice(0, AI_SHOW_TAGS)
+      .map(t => `<span class="ai-tag">${esc(t)}</span>`).join('');
+  }
+
+  function updateAiStatus(text) {
+    if (!D.aiStatus) return;
+    D.aiStatus.textContent = text;
+    D.aiStatus.classList.toggle('hidden', !text);
   }
 
   /* ─────────────────────────────────────────
@@ -521,6 +679,7 @@
     if (S.loading) return;
     S.loading = true; S.files = []; S.pageToken = null;
     S.collapsedGroups.clear();
+    _aiQueue = []; _aiDone = 0; _aiTotal = 0; // M8: cancel AI queue for previous folder
 
     D.landing.classList.add('hidden');
     D.gallery.classList.remove('hidden');
@@ -648,7 +807,12 @@
     else if (S.filter !== 'all')    list = list.filter(f => fileType(f.mimeType) === S.filter);
     if (S.search) {
       const q = S.search.toLowerCase();
-      list = list.filter(f => f.name.toLowerCase().includes(q));
+      list = list.filter(f => {
+        if (f.name.toLowerCase().includes(q)) return true;
+        // M8: also match AI tags when enabled
+        if (_aiEnabled && _aiTags[f.id]?.some(t => t.includes(q))) return true;
+        return false;
+      });
     }
     if (S.sort === 'timeline') {
       // Sort newest-first for grouping; renderGrid will cluster by month
@@ -679,6 +843,11 @@
       _pendingItem = null;
       const midx = S.media.findIndex(f => f.id === mid);
       if (midx >= 0) openLb(midx);
+    }
+    // M8: trigger AI tagging if enabled
+    if (_aiEnabled) {
+      if (_aiModel && !_aiRunning) startAiTagging();
+      else if (!_aiLoading) enableAiTagging();
     }
   }
 
@@ -789,6 +958,10 @@
             <span class="card-date">${fmtDate(file.modifiedTime)}</span>
             <span class="card-size">${fmtSize(file.size)}</span>
           </div>
+          ${_aiEnabled && t !== 'folder' ? `<div class="ai-tags">${
+            (_aiTags[file.id] || []).slice(0, AI_SHOW_TAGS)
+              .map(tag => `<span class="ai-tag">${esc(tag)}</span>`).join('')
+          }</div>` : ''}
           <div class="card-actions">
             <a class="act-btn"
                href="${esc(file.webViewLink||'#')}"
@@ -1511,6 +1684,12 @@
     if (Math.abs(dx) > 50) lbNav(dx < 0 ? 1 : -1);
   });
 
+  /* ─── AI Tagging toggle (M8) ───────────── */
+  D.aiBtn.addEventListener('click', () => {
+    if (_aiEnabled) disableAiTagging();
+    else            enableAiTagging();
+  });
+
   /* ─── Copy gallery link (M6) ───────────── */
   D.copyLinkBtn.addEventListener('click', () => {
     navigator.clipboard.writeText(location.href).then(
@@ -1542,6 +1721,13 @@
     if (bp.get('q'))      _pendingSearch = bp.get('q');
     _pendingItem = bp.get('item');
     if (bootFolder) { D.input.value = bootFolder; S.stack = []; browse(bootFolder); }
+  }
+
+  /* ─── AI Tagging boot (M8) ─────────────── */
+  loadAiTagsFromStorage();
+  if (localStorage.getItem(LS_AI_ENABLED)) {
+    _aiEnabled = true;
+    D.aiBtn.classList.add('active');
   }
 
 })();

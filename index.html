@@ -162,6 +162,17 @@
         Slideshow
       </button>
 
+      <!-- AI tagging toggle (M8) -->
+      <button class="ai-btn" id="ai-btn" title="Tag images with AI (on-device, private)">
+        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24"
+             fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
+          <line x1="7" y1="7" x2="7.01" y2="7"/>
+        </svg>
+        AI Tags
+      </button>
+
       <select class="sort-sel" id="sort-sel" aria-label="Sort order">
         <option value="name-asc">Name A→Z</option>
         <option value="name-desc">Name Z→A</option>
@@ -173,6 +184,7 @@
       </select>
 
       <span class="file-count" id="file-count"></span>
+      <span class="ai-status hidden" id="ai-status"></span>
     </div>
 
     <div class="grid" id="grid" role="list"></div>

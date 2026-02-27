@@ -1,7 +1,7 @@
 # Darkroom — Implementation Status
 
 > **Last Updated**: 2026-02-27
-> **Current Milestone**: 7 ✅ Complete — Next planned: 8, 9, 10
+> **Current Milestone**: 8 ✅ Complete — Next planned: 9, 10
 > **Project**: Darkroom — Drive Media Manager
 > **Vision**: Browse Your Media, Developed. Paste a Google Drive folder link → instant cinematic gallery.
 
@@ -29,7 +29,7 @@
 | 5 | Date Auto-Grouping | 5 | ✅ 100% | 2026-02-26 |
 | 6 | URL Sharing & Deep Links | 4 | ✅ 100% | 2026-02-27 |
 | 7 | Private Folder OAuth | 6 | ✅ 100% | 2026-02-27 |
-| 8 | AI Tagging (On-Device) | 7 | ⬜ 0% | — |
+| 8 | AI Tagging (On-Device) | 7 | ✅ 100% | 2026-02-27 |
 | 9 | Embeddable Gallery Widget | 5 | ⬜ 0% | — |
 | 10 | Timeline View | 6 | ⬜ 0% | — |
 
@@ -246,28 +246,38 @@ All DOM ID references between `index.html` and `script.js` verified — no misma
 
 ---
 
-## Milestone 8 — AI Tagging (On-Device) ⬜
+## Milestone 8 — AI Tagging (On-Device) ✅
 
 > **Goal**: Auto-label photos by scene, object, and content so users can search "beach", "birthday cake", "dog" — without uploading to any AI service.
-> **Status**: Not Started
+> **Status**: Complete
+> **Completed**: 2026-02-27
 
 ### Tasks
 
 | # | Task | Status |
 |---|------|--------|
-| 8.1 | Integrate TensorFlow.js MobileNet for on-device image classification | ⬜ |
-| 8.2 | Background tag generation after gallery loads | ⬜ |
-| 8.3 | Tag display on card hover | ⬜ |
-| 8.4 | Tag-based search integration | ⬜ |
-| 8.5 | Tag index persistence in localStorage | ⬜ |
-| 8.6 | Progress indicator while tagging batch | ⬜ |
-| 8.7 | Opt-in toggle (AI tagging is off by default) | ⬜ |
+| 8.1 | Integrate TensorFlow.js MobileNet for on-device image classification | ✅ |
+| 8.2 | Background tag generation after gallery loads | ✅ |
+| 8.3 | Tag display on card hover | ✅ |
+| 8.4 | Tag-based search integration | ✅ |
+| 8.5 | Tag index persistence in localStorage | ✅ |
+| 8.6 | Progress indicator while tagging batch | ✅ |
+| 8.7 | Opt-in toggle (AI tagging is off by default) | ✅ |
 
 ### Notes
-- Use TensorFlow.js + MobileNet v2 (runs entirely in browser, no server)
-- Process at thumbnail resolution (400px) to keep it fast
-- Cache tags in localStorage keyed by file ID to avoid re-processing
-- Tag confidence threshold: 0.35 (balance recall vs. noise)
+- TF.js (`@tensorflow/tfjs@4.20.0`) + MobileNet v2 (`@tensorflow-models/mobilenet@2.1.0`) lazy-loaded from CDN — zero impact for users who don't enable it
+- `AI_THRESHOLD = 0.30` confidence cutoff, `AI_SHOW_TAGS = 3` per card, `AI_MAX_PREDS = 5` requested from model
+- `loadTFScripts()` chains TF.js → MobileNet script injection; only loads once (`window.mobilenet` guard)
+- `enableAiTagging()` loads model, then calls `startAiTagging()`; handles load errors gracefully with toast
+- `startAiTagging()` builds queue of untagged `thumbnailLink` images (`hasOwnProperty` check — files without `thumbnailLink` skipped)
+- `processAiQueue()` async loop: sequential classification; saves each result (even empty) to prevent re-processing on next render
+- `classifyImage()` uses `img.crossOrigin = 'anonymous'` before `.src` — required for lh3.googleusercontent.com CORS
+- `paintAiTags()` updates `.ai-tags` div in-place without re-rendering the whole card
+- `_aiTags` stored in `localStorage['darkroom_ai_tags']` as `{ [fileId]: string[] }`; opt-in state in `darkroom_ai_enabled`
+- `browse()` clears `_aiQueue` on folder navigation to cancel in-flight batch
+- `applyFilter()` auto-starts tagging when AI is enabled and grid re-renders; also integrates AI tag search
+- Tag colors: green monospace pills (`.ai-tag`) to visually distinguish from filename/meta text
+- AI status indicator (`.ai-status`) shows "AI: N/M" count during processing, hidden when idle
 
 ---
 

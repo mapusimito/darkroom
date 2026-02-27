@@ -1101,6 +1101,43 @@ body.select-mode .card-folder .card-check { display: none; }
 .slideshow-btn:active { transform: scale(.97); }
 
 /* ===========================
+   AI TAGS BUTTON (M8)
+=========================== */
+.ai-btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: transparent; border: 1px solid var(--border);
+  border-radius: var(--r); padding: 7px 14px;
+  color: var(--txt-muted); font-family: var(--ff-ui); font-size: .72rem;
+  font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+  cursor: pointer; transition: all .2s;
+  white-space: nowrap; flex-shrink: 0;
+}
+.ai-btn:hover { border-color: var(--b-doc); color: var(--b-doc); background: rgba(80,200,120,.08); }
+.ai-btn.active {
+  background: rgba(80,200,120,.12); border-color: var(--b-doc);
+  color: var(--b-doc); box-shadow: 0 0 0 3px rgba(80,200,120,.1);
+}
+
+.ai-status {
+  font-family: var(--ff-mono); font-size: .7rem; color: var(--b-doc);
+  white-space: nowrap; animation: aiPulse 1.4s ease-in-out infinite;
+}
+@keyframes aiPulse { 0%,100% { opacity: 1; } 50% { opacity: .5; } }
+
+/* AI tag chips on cards */
+.ai-tags {
+  display: flex; flex-wrap: wrap; gap: 3px;
+  margin-top: 5px; min-height: 0;
+}
+.ai-tag {
+  font-family: var(--ff-mono); font-size: .56rem;
+  background: rgba(80,200,120,.15); border: 1px solid rgba(80,200,120,.25);
+  border-radius: var(--rPill); padding: 1px 6px;
+  color: rgba(200,255,220,.8); white-space: nowrap;
+  line-height: 1.5;
+}
+
+/* ===========================
    SLIDESHOW OVERLAY
 =========================== */
 .ss-overlay {
