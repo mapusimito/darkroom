@@ -10,6 +10,8 @@
   <link rel="stylesheet" href="style.css">
   <!-- Load config.js if present (gitignored — never committed). Copy config.example.js → config.js to set your API key. -->
   <script src="config.js" onerror="void 0"></script>
+  <!-- JSZip: client-side ZIP generation (M4) -->
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 </head>
 
 <body>
@@ -111,6 +113,15 @@
         <button class="ftab ftab-fav" data-filter="favorites">♡ Favs</button>
       </div>
 
+      <button class="select-mode-btn" id="select-mode-btn" aria-label="Select files for download" title="Select files">
+        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24"
+             fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="18" height="18" rx="2"/>
+          <polyline points="9 11 12 14 22 4"/>
+        </svg>
+        Select
+      </button>
+
       <button class="slideshow-btn hidden" id="slideshow-btn" aria-label="Start slideshow" title="Start slideshow">
         <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24"
              fill="currentColor" stroke="none">
@@ -126,6 +137,7 @@
         <option value="date-asc">Oldest first</option>
         <option value="size-desc">Largest first</option>
         <option value="size-asc">Smallest first</option>
+        <option value="timeline">Timeline</option>
       </select>
 
       <span class="file-count" id="file-count"></span>
@@ -240,6 +252,41 @@
     </div>
   </div>
 </div>
+
+<!-- ===================================
+     SELECTION BAR (M4)
+=================================== -->
+<div class="sel-bar hidden" id="sel-bar" role="toolbar" aria-label="File selection">
+  <span class="sel-count" id="sel-count">0 selected</span>
+  <div class="sel-actions">
+    <button class="sel-action-btn" id="sel-all">Select all</button>
+    <button class="sel-action-btn" id="sel-none">Clear</button>
+  </div>
+  <div class="sel-progress-wrap hidden" id="sel-progress-wrap">
+    <div class="sel-progress-track">
+      <div class="sel-progress-bar" id="sel-progress-bar"></div>
+    </div>
+    <span class="sel-progress-label" id="sel-progress-label"></span>
+  </div>
+  <button class="sel-download-btn" id="sel-download" disabled>
+    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24"
+         fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+      <polyline points="7 10 12 15 17 10"/>
+      <line x1="12" y1="15" x2="12" y2="3"/>
+    </svg>
+    <span id="sel-download-label">Download ZIP</span>
+  </button>
+  <button class="sel-exit-btn" id="sel-exit" aria-label="Exit select mode">
+    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24"
+         fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M18 6 6 18M6 6l12 12"/>
+    </svg>
+  </button>
+</div>
+
+<!-- DATE NAV SIDEBAR (M5) -->
+<div class="date-nav hidden" id="date-nav" aria-label="Navigate by date" role="navigation"></div>
 
 <script src="script.js"></script>
 

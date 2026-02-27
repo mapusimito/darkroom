@@ -89,6 +89,8 @@
     slideshowIdx:    0,
     slideshowTimer:  null,
     slideshowPaused: false,
+    // Date grouping (M5)
+    collapsedGroups: new Set(),
   };
 
   /* ─────────────────────────────────────────
@@ -139,6 +141,8 @@
     apiKeyClear: el('api-key-clear'),
     apiKeyClose: el('settings-close'),
     apiKeyDot:   el('api-key-dot'),
+    // date nav (M5)
+    dateNav:     el('date-nav'),
     // slideshow
     ssBtn:       el('slideshow-btn'),
     ssOverlay:   el('slideshow'),
@@ -264,6 +268,7 @@
   async function browse(folderId, folderName) {
     if (S.loading) return;
     S.loading = true; S.files = []; S.pageToken = null;
+    S.collapsedGroups.clear();
 
     D.landing.classList.add('hidden');
     D.gallery.classList.remove('hidden');
@@ -373,16 +378,21 @@
       const q = S.search.toLowerCase();
       list = list.filter(f => f.name.toLowerCase().includes(q));
     }
-    const [key, dir] = S.sort.split('-');
-    list.sort((a, b) => {
-      let va, vb;
-      if (key === 'name') { va = a.name.toLowerCase(); vb = b.name.toLowerCase(); }
-      else if (key === 'date') { va = new Date(a.modifiedTime); vb = new Date(b.modifiedTime); }
-      else { va = +a.size||0; vb = +b.size||0; }
-      if (va < vb) return dir==='asc' ? -1 : 1;
-      if (va > vb) return dir==='asc' ?  1 :-1;
-      return 0;
-    });
+    if (S.sort === 'timeline') {
+      // Sort newest-first for grouping; renderGrid will cluster by month
+      list.sort((a, b) => new Date(b.modifiedTime) - new Date(a.modifiedTime));
+    } else {
+      const [key, dir] = S.sort.split('-');
+      list.sort((a, b) => {
+        let va, vb;
+        if (key === 'name') { va = a.name.toLowerCase(); vb = b.name.toLowerCase(); }
+        else if (key === 'date') { va = new Date(a.modifiedTime); vb = new Date(b.modifiedTime); }
+        else { va = +a.size||0; vb = +b.size||0; }
+        if (va < vb) return dir==='asc' ? -1 : 1;
+        if (va > vb) return dir==='asc' ?  1 :-1;
+        return 0;
+      });
+    }
     S.filtered = list;
     S.media = list.filter(f => { const t = fileType(f.mimeType); return t==='image'||t==='video'; });
     renderGrid();
@@ -413,101 +423,115 @@
     </div>`;
   }
 
-  function renderGrid() {
-    if (!S.filtered.length) {
-      const isFavsFilter = S.filter === 'favorites';
-      D.grid.innerHTML = `<div class="state-msg" style="grid-column:1/-1">
-        <div class="icon">${S.search ? '◻' : isFavsFilter ? '♡' : '◻'}</div>
-        <h3>${S.search ? 'No matches' : isFavsFilter ? 'No favorites in this folder' : 'Empty folder'}</h3>
-        <p>${S.search
-          ? `No files match "<em>${esc(S.search)}</em>"`
-          : isFavsFilter
-            ? 'Hover a card and tap ♡ to save favorites — they persist across sessions.'
-            : 'This folder contains no files.'
-        }</p>
-      </div>`;
-      return;
+  /* ─────────────────────────────────────────
+     DATE GROUPING (M5)
+  ───────────────────────────────────────── */
+  let _groupObserver = null;
+
+  // Cluster a flat list of files into [{key, label, shortLabel, files[]}] sorted newest first
+  function groupFiles(list) {
+    const map = new Map();
+    for (const f of list) {
+      if (!f.modifiedTime) continue;
+      const d   = new Date(f.modifiedTime);
+      const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+      if (!map.has(key)) {
+        map.set(key, {
+          key,
+          label:      d.toLocaleDateString('en-US', { month: 'long',  year: 'numeric' }),
+          shortLabel: d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+          files: [],
+        });
+      }
+      map.get(key).files.push(f);
+    }
+    return [...map.values()].sort((a, b) => b.key.localeCompare(a.key)); // newest first
+  }
+
+  // Build HTML for a single card (shared by flat and grouped renderers)
+  function buildCardHtml(file, idx, gkey) {
+    const t     = fileType(file.mimeType);
+    const thumb = thumbUrl(file, t);
+    const bc    = badgeCls(t);
+    const bl    = badgeLbl(t, file.mimeType);
+    const midx  = S.media.findIndex(f => f.id === file.id);
+    const faved    = isFav(file.id);
+    const selected = S.selectMode && S.selected.has(file.id);
+    const hidden   = gkey && S.collapsedGroups.has(gkey);
+
+    let thumbHtml;
+    if (t === 'folder') {
+      thumbHtml = `<div class="thumb-icon" style="color:var(--b-fold)">${typeIcon('folder')}<span>Directory</span></div>`;
+    } else if (thumb) {
+      thumbHtml = `
+        <img src="${esc(thumb)}" alt="${esc(file.name)}" loading="lazy"
+             onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+        <div class="thumb-icon" style="display:none">${typeIcon(t)}</div>`;
+    } else {
+      thumbHtml = `<div class="thumb-icon">${typeIcon(t)}</div>`;
     }
 
-    D.grid.innerHTML = S.filtered.map((file, idx) => {
-      const t     = fileType(file.mimeType);
-      const thumb = thumbUrl(file, t);
-      const bc    = badgeCls(t);
-      const bl    = badgeLbl(t, file.mimeType);
-      const midx  = S.media.findIndex(f => f.id === file.id);
-
-      let thumbHtml;
-      if (t === 'folder') {
-        thumbHtml = `<div class="thumb-icon" style="color:var(--b-fold)">${typeIcon('folder')}<span>Directory</span></div>`;
-      } else if (thumb) {
-        thumbHtml = `
-          <img src="${esc(thumb)}" alt="${esc(file.name)}" loading="lazy"
-               onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
-          <div class="thumb-icon" style="display:none">${typeIcon(t)}</div>`;
-      } else {
-        thumbHtml = `<div class="thumb-icon">${typeIcon(t)}</div>`;
-      }
-
-      const faved    = isFav(file.id);
-      const selected = S.selectMode && S.selected.has(file.id);
-      return `
-        <div class="card ${t==='folder'?'card-folder':''} ${selected?'selected':''}"
-             role="listitem" tabindex="0"
-             data-id="${esc(file.id)}" data-type="${t}"
-             data-midx="${midx}" data-fname="${t==='folder'?esc(file.name):''}"
-             style="animation-delay:${Math.min(idx*25,400)}ms">
-          <div class="card-thumb">
-            ${thumbHtml}
-            <span class="badge ${bc}">${bl}</span>
-            ${t !== 'folder' ? `
-            <button class="card-check" data-cid="${esc(file.id)}" aria-label="Select ${esc(file.name)}">
-              <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24"
-                   fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="20 6 9 17 4 12"/>
-              </svg>
-            </button>` : ''}
-            <button class="fav-btn ${faved ? 'faved' : ''}"
-                    data-fid="${esc(file.id)}"
-                    aria-label="${faved ? 'Remove from favorites' : 'Add to favorites'}"
-                    title="${faved ? 'Remove from favorites' : 'Add to favorites'}">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
-                   stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-              </svg>
-            </button>
-            ${t==='video' ? `<div class="play-overlay">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-                <circle cx="12" cy="12" r="10" opacity=".25"/>
-                <polygon points="10 8 16 12 10 16 10 8"/>
-              </svg></div>` : ''}
+    return `
+      <div class="card ${t==='folder'?'card-folder':''} ${selected?'selected':''} ${hidden?'group-hidden':''}"
+           role="listitem" tabindex="0"
+           data-id="${esc(file.id)}" data-type="${t}"
+           data-midx="${midx}" data-fname="${t==='folder'?esc(file.name):''}"
+           ${gkey ? `data-gkey="${esc(gkey)}"` : ''}
+           style="animation-delay:${Math.min(idx*25,400)}ms">
+        <div class="card-thumb">
+          ${thumbHtml}
+          <span class="badge ${bc}">${bl}</span>
+          ${t !== 'folder' ? `
+          <button class="card-check" data-cid="${esc(file.id)}" aria-label="Select ${esc(file.name)}">
+            <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24"
+                 fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+          </button>` : ''}
+          <button class="fav-btn ${faved ? 'faved' : ''}"
+                  data-fid="${esc(file.id)}"
+                  aria-label="${faved ? 'Remove from favorites' : 'Add to favorites'}"
+                  title="${faved ? 'Remove from favorites' : 'Add to favorites'}">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+            </svg>
+          </button>
+          ${t==='video' ? `<div class="play-overlay">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+              <circle cx="12" cy="12" r="10" opacity=".25"/>
+              <polygon points="10 8 16 12 10 16 10 8"/>
+            </svg></div>` : ''}
+        </div>
+        <div class="card-body">
+          <div class="card-name" title="${esc(file.name)}">${esc(file.name)}</div>
+          <div class="card-meta">
+            <span class="card-date">${fmtDate(file.modifiedTime)}</span>
+            <span class="card-size">${fmtSize(file.size)}</span>
           </div>
-          <div class="card-body">
-            <div class="card-name" title="${esc(file.name)}">${esc(file.name)}</div>
-            <div class="card-meta">
-              <span class="card-date">${fmtDate(file.modifiedTime)}</span>
-              <span class="card-size">${fmtSize(file.size)}</span>
-            </div>
-            <div class="card-actions">
-              <a class="act-btn"
-                 href="${esc(file.webViewLink||'#')}"
-                 target="_blank" rel="noopener noreferrer"
-                 onclick="event.stopPropagation()">
-                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                Open
-              </a>
-              ${file.webContentLink ? `
-              <a class="act-btn"
-                 href="${esc(file.webContentLink)}"
-                 target="_blank" rel="noopener noreferrer"
-                 onclick="event.stopPropagation()">
-                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                Save
-              </a>` : ''}
-            </div>
+          <div class="card-actions">
+            <a class="act-btn"
+               href="${esc(file.webViewLink||'#')}"
+               target="_blank" rel="noopener noreferrer"
+               onclick="event.stopPropagation()">
+              <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+              Open
+            </a>
+            ${file.webContentLink ? `
+            <a class="act-btn"
+               href="${esc(file.webContentLink)}"
+               target="_blank" rel="noopener noreferrer"
+               onclick="event.stopPropagation()">
+              <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Save
+            </a>` : ''}
           </div>
-        </div>`;
-    }).join('');
+        </div>
+      </div>`;
+  }
 
+  // Wire click/keyboard/fav/select events on all .card elements in the grid
+  function wireCardEvents() {
     D.grid.querySelectorAll('.card').forEach(card => {
       const { id, type, midx, fname } = card.dataset;
       const activate = () => {
@@ -525,7 +549,6 @@
       card.addEventListener('click', activate);
       card.addEventListener('keydown', e => (e.key==='Enter'||e.key===' ') && (e.preventDefault(), activate()));
 
-      // Card checkbox — stop propagation so card click doesn't also fire
       const checkBtn = card.querySelector('.card-check');
       if (checkBtn) {
         checkBtn.addEventListener('click', e => {
@@ -534,7 +557,6 @@
         });
       }
 
-      // Fav button — stop propagation so it doesn't open the card
       const favBtn = card.querySelector('.fav-btn');
       if (favBtn) {
         favBtn.addEventListener('click', e => {
@@ -543,6 +565,124 @@
         });
       }
     });
+  }
+
+  // Toggle a group's collapsed state without re-rendering the whole grid
+  function toggleGroup(key) {
+    const nowCollapsed = !S.collapsedGroups.has(key);
+    if (nowCollapsed) S.collapsedGroups.add(key);
+    else              S.collapsedGroups.delete(key);
+
+    const hdr = D.grid.querySelector(`.date-group-hdr[data-gkey="${key}"]`);
+    if (hdr) {
+      hdr.classList.toggle('collapsed', nowCollapsed);
+      hdr.setAttribute('aria-expanded', nowCollapsed ? 'false' : 'true');
+    }
+    D.grid.querySelectorAll(`.card[data-gkey="${key}"]`).forEach(card => {
+      card.classList.toggle('group-hidden', nowCollapsed);
+    });
+  }
+
+  // Build the fixed right-side date navigation sidebar
+  function buildDateNav(groups) {
+    if (!D.dateNav) return;
+    if (_groupObserver) { _groupObserver.disconnect(); _groupObserver = null; }
+    if (!groups.length) { D.dateNav.classList.add('hidden'); return; }
+
+    D.dateNav.innerHTML = groups.map(g =>
+      `<div class="date-nav-item" data-gkey="${esc(g.key)}" title="${esc(g.label)}">
+        <span class="date-nav-dot"></span>
+        <span>${esc(g.shortLabel)}</span>
+      </div>`
+    ).join('');
+    D.dateNav.classList.remove('hidden');
+
+    // Highlight the nav item whose group header is nearest the top of the viewport
+    _groupObserver = new IntersectionObserver(entries => {
+      for (const entry of entries) {
+        const key     = entry.target.dataset.gkey;
+        const navItem = D.dateNav.querySelector(`.date-nav-item[data-gkey="${key}"]`);
+        if (navItem) navItem.classList.toggle('active', entry.isIntersecting);
+      }
+    }, { rootMargin: '-62px 0px -40% 0px', threshold: 0 });
+
+    D.grid.querySelectorAll('.date-group-hdr').forEach(hdr => _groupObserver.observe(hdr));
+
+    // Smooth-scroll to group on click
+    D.dateNav.querySelectorAll('.date-nav-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const hdr = document.getElementById(`group-${item.dataset.gkey}`);
+        if (hdr) hdr.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    });
+  }
+
+  // Render the grid in timeline (grouped by month) mode
+  function renderGridGrouped() {
+    const groups = groupFiles(S.filtered);
+    if (!groups.length) {
+      D.grid.innerHTML = `<div class="state-msg" style="grid-column:1/-1">
+        <div class="icon">◻</div>
+        <h3>Empty folder</h3>
+        <p>This folder contains no files.</p>
+      </div>`;
+      buildDateNav([]);
+      return;
+    }
+
+    let html = '';
+    let idx  = 0;
+    for (const grp of groups) {
+      const collapsed = S.collapsedGroups.has(grp.key);
+      html += `<div class="date-group-hdr ${collapsed ? 'collapsed' : ''}"
+                    data-gkey="${esc(grp.key)}"
+                    id="group-${esc(grp.key)}"
+                    role="button" tabindex="0"
+                    aria-expanded="${collapsed ? 'false' : 'true'}">
+        <span class="date-group-label">${esc(grp.label)}</span>
+        <span class="date-group-count">${grp.files.length} item${grp.files.length !== 1 ? 's' : ''}</span>
+        <span class="date-group-toggle" aria-hidden="true">▾</span>
+      </div>`;
+      for (const file of grp.files) {
+        html += buildCardHtml(file, idx++, grp.key);
+      }
+    }
+    D.grid.innerHTML = html;
+
+    D.grid.querySelectorAll('.date-group-hdr').forEach(hdr => {
+      hdr.addEventListener('click', () => toggleGroup(hdr.dataset.gkey));
+      hdr.addEventListener('keydown', e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), toggleGroup(hdr.dataset.gkey)));
+    });
+
+    wireCardEvents();
+    buildDateNav(groups);
+  }
+
+  function renderGrid() {
+    if (!S.filtered.length) {
+      const isFavsFilter = S.filter === 'favorites';
+      D.grid.innerHTML = `<div class="state-msg" style="grid-column:1/-1">
+        <div class="icon">${S.search ? '◻' : isFavsFilter ? '♡' : '◻'}</div>
+        <h3>${S.search ? 'No matches' : isFavsFilter ? 'No favorites in this folder' : 'Empty folder'}</h3>
+        <p>${S.search
+          ? `No files match "<em>${esc(S.search)}</em>"`
+          : isFavsFilter
+            ? 'Hover a card and tap ♡ to save favorites — they persist across sessions.'
+            : 'This folder contains no files.'
+        }</p>
+      </div>`;
+      buildDateNav([]);
+      return;
+    }
+
+    if (S.sort === 'timeline') {
+      renderGridGrouped();
+      return;
+    }
+
+    buildDateNav([]);
+    D.grid.innerHTML = S.filtered.map((file, idx) => buildCardHtml(file, idx, '')).join('');
+    wireCardEvents();
   }
 
   /* ─────────────────────────────────────────

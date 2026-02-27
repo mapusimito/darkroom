@@ -1,7 +1,7 @@
 # Darkroom — Implementation Status
 
 > **Last Updated**: 2026-02-26
-> **Current Milestone**: 4 ✅ Complete — Next planned: 5, 6, 7
+> **Current Milestone**: 5 ✅ Complete — Next planned: 6, 7, 8
 > **Project**: Darkroom — Drive Media Manager
 > **Vision**: Browse Your Media, Developed. Paste a Google Drive folder link → instant cinematic gallery.
 
@@ -26,7 +26,7 @@
 | 2 | Slideshow Mode | 5 | ✅ 100% | 2026-02-26 |
 | 3 | Favorites & Shortlist | 4 | ✅ 100% | 2026-02-26 |
 | 4 | Multi-file ZIP Download | 4 | ✅ 100% | 2026-02-26 |
-| 5 | Date Auto-Grouping | 5 | ⬜ 0% | — |
+| 5 | Date Auto-Grouping | 5 | ✅ 100% | 2026-02-26 |
 | 6 | URL Sharing & Deep Links | 4 | ⬜ 0% | — |
 | 7 | Private Folder OAuth | 6 | ⬜ 0% | — |
 | 8 | AI Tagging (On-Device) | 7 | ⬜ 0% | — |
@@ -159,25 +159,30 @@ All DOM ID references between `index.html` and `script.js` verified — no misma
 
 ---
 
-## Milestone 5 — Date Auto-Grouping ⬜
+## Milestone 5 — Date Auto-Grouping ✅
 
 > **Goal**: Automatically cluster media by date (year → month → day) so people can navigate memories chronologically.
-> **Status**: Not Started
+> **Status**: Complete
+> **Completed**: 2026-02-26
 
 ### Tasks
 
 | # | Task | Status |
 |---|------|--------|
-| 5.1 | Parse `modifiedTime` into year/month groups | ⬜ |
-| 5.2 | Group header rows in grid (sticky date labels) | ⬜ |
-| 5.3 | "Timeline" sort mode option | ⬜ |
-| 5.4 | Collapse/expand group sections | ⬜ |
-| 5.5 | Jump-to-date quick nav sidebar | ⬜ |
+| 5.1 | Parse `modifiedTime` into year/month groups | ✅ |
+| 5.2 | Group header rows in grid (sticky date labels) | ✅ |
+| 5.3 | "Timeline" sort mode option | ✅ |
+| 5.4 | Collapse/expand group sections | ✅ |
+| 5.5 | Jump-to-date quick nav sidebar | ✅ |
 
 ### Notes
-- Use `modifiedTime` as proxy for capture date (Drive doesn't surface EXIF dates via API without file download)
-- Group headers should be sticky while scrolling within group
-- Timeline mode should be triggered separately from sort order
+- `groupFiles()` clusters `S.filtered` into `{key, label, shortLabel, files[]}` sorted newest-first
+- "Timeline" added as a sort option in the dropdown — triggers `renderGridGrouped()` instead of the flat `renderGrid()`
+- Group headers: `position: sticky; top: 62px` — stick just below the app header while scrolling through their group
+- Collapse/expand: clicking a header toggles `S.collapsedGroups` Set and directly toggles `.group-hidden` on child cards (no full re-render)
+- Sidebar (`#date-nav`): fixed right-side, hidden on screens <1280px; IntersectionObserver highlights the active group; click smooth-scrolls to the group header
+- Flat rendering refactored into `buildCardHtml(file, idx, gkey)` + `wireCardEvents()` shared by both renderers
+- `S.collapsedGroups` cleared on folder navigation to start fresh
 
 ---
 
